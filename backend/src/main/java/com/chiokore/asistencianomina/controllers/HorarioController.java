@@ -1,6 +1,7 @@
 package com.chiokore.asistencianomina.controllers;
 
 import com.chiokore.asistencianomina.domain.entities.Horario;
+import com.chiokore.asistencianomina.dto.HorarioDto;
 import com.chiokore.asistencianomina.repositories.HorarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Data;
@@ -16,28 +17,11 @@ public class HorarioController {
     private final HorarioRepository horarioRepository;
     private final com.chiokore.asistencianomina.repositories.EmpleadoRepository empleadoRepository;
 
-    @Data
-    public static class HorarioDto {
-        private Long id;
-        private Long empleadoId;
-        private String empleadoNombre;
-        private String diaSemana;
-        private String horaInicio;
-        private String horaFin;
-    }
-
     @GetMapping
     public List<HorarioDto> getAll() {
-        return horarioRepository.findAll().stream().map(h -> {
-            HorarioDto dto = new HorarioDto();
-            dto.setId(h.getId());
-            dto.setEmpleadoId(h.getEmpleado().getId());
-            dto.setEmpleadoNombre(h.getEmpleado().getNombre());
-            dto.setDiaSemana(h.getDiaSemana());
-            dto.setHoraInicio(h.getHoraInicio() != null ? h.getHoraInicio().toString() : "");
-            dto.setHoraFin(h.getHoraFin() != null ? h.getHoraFin().toString() : "");
-            return dto;
-        }).collect(Collectors.toList());
+        return horarioRepository.findAll().stream()
+                .map(HorarioDto::fromEntity)
+                .collect(Collectors.toList());
     }
 
     // Endpoint simplificado para guardar un nuevo horario (Para la pre-selección o guardado automático)

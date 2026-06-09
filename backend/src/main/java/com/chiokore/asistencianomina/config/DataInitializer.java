@@ -1,11 +1,15 @@
 package com.chiokore.asistencianomina.config;
+
 import com.chiokore.asistencianomina.domain.entities.*;
 import com.chiokore.asistencianomina.repositories.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("!test")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
@@ -26,8 +30,11 @@ public class DataInitializer implements CommandLineRunner {
             EstadoCandidato eEspera = new EstadoCandidato(); eEspera.setNombre("ESPERA"); estadoRepo.save(eEspera);
             EstadoCandidato eAceptado = new EstadoCandidato(); eAceptado.setNombre("ACEPTADO"); estadoRepo.save(eAceptado);
 
+            BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+            String passowrdEnconder = encoder.encode("1234");
             Empleado e1 = new Empleado();
             e1.setNombre("Sofía Martínez");
+            e1.setContrasena(passowrdEnconder);
             e1.setRol(rTrab);
             e1.setTipoContrato(tPagado);
             e1.setTarifaHora(50.0);
@@ -39,6 +46,7 @@ public class DataInitializer implements CommandLineRunner {
 
             Empleado e2 = new Empleado();
             e2.setNombre("Mateo López");
+            e2.setContrasena(passowrdEnconder);
             e2.setRol(rTrab);
             e2.setTipoContrato(tVoluntario);
             e2.setTarifaHora(0.0);
@@ -51,6 +59,7 @@ public class DataInitializer implements CommandLineRunner {
             
             Empleado e3 = new Empleado();
             e3.setNombre("Valentina Ruiz");
+            e3.setContrasena(passowrdEnconder);
             e3.setRol(rTrab);
             e3.setTipoContrato(tPagado);
             e3.setTarifaHora(60.0);

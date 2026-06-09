@@ -11,7 +11,7 @@ public class AsistenciaController {
     private final AsistenciaService service;
 
     @PostMapping("/registrar/{empleadoId}")
-    public Asistencia registrar(@PathVariable Long empleadoId) { 
-        return service.registrarToggle(empleadoId); 
+    public Asistencia registrar(@PathVariable Long empleadoId) {
+        return service.registrarToggle(empleadoId);
     }
 }

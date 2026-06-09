@@ -1,5 +1,6 @@
 package com.chiokore.asistencianomina.domain.entities;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ public class Asistencia {
     @JoinColumn(name = "empleado_id", nullable = false)
     private Empleado empleado;
     
+    @NotNull
     private LocalDate fecha;
     private LocalDateTime entrada;
     private LocalDateTime salida;
