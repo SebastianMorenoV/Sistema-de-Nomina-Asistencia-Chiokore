@@ -1,5 +1,6 @@
 package com.chiokore.asistencianomina.domain.entities;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 import java.time.LocalDate;
 
@@ -14,7 +15,9 @@ public class Candidato {
     @JoinColumn(name = "estado_id")
     private EstadoCandidato estado;
     
+    @NotBlank
     private String nombre;
     private String telefonoContacto;
+    @NotNull
     private LocalDate fechaSolicitud;
 }

@@ -4,7 +4,9 @@ import com.chiokore.asistencianomina.domain.entities.Empleado;
 import com.chiokore.asistencianomina.repositories.AsistenciaRepository;
 import com.chiokore.asistencianomina.repositories.EmpleadoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,8 +33,12 @@ public class AsistenciaService {
             asistencia = asistenciasHoy.get(0);
             if (asistencia.getSalida() == null) {
                 asistencia.setSalida(LocalDateTime.now());
+                if (asistencia.getEntrada() != null && asistencia.getSalida() != null) {
+                    long diffMinutes = java.time.Duration.between(asistencia.getEntrada(), asistencia.getSalida()).toMinutes();
+                    asistencia.setHorasCalculadas(diffMinutes / 60.0);
+                }
             } else {
-                throw new RuntimeException("El empleado ya completó su turno de hoy.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El empleado ya completó su turno de hoy.");
             }
         }
         return repository.save(asistencia);
