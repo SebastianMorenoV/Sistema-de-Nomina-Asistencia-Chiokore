@@ -10,7 +10,7 @@ spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
 spring.jpa.properties.hibernate.format_sql=true
 
 # Servidor
-server.port=9000
+server.port=8080
 
 # JWT (jjwt + HMAC-SHA256). Genera un secreto: openssl rand -base64 32
 jwt.secret=GENERA_TU_PROPIO_SECRETO_BASE64_AQUI

@@ -49,6 +49,18 @@ Para evitar problemas de conexión al momento de arrancar el backend, tu servido
 
 > **💡 Nota de Seeders:** La primera vez que el backend se ejecute con éxito de conexión, la Base de Datos se llenará automáticamente con datos de prueba gracias a la clase `DataInitializer.java`. ¡No tienes que insertar nada a mano!
 
+### 🔐 Configurar el `application.properties`
+
+1. Copiá el template:
+   ```bash
+   cp backend/src/main/resources/application.properties.example backend/src/main/resources/application.properties
+   ```
+2. Llená estos 3 campos:
+   - `spring.datasource.password` → tu contraseña de MySQL
+   - `jwt.secret` → generá uno con `openssl rand -base64 32`
+   - `server.port` → ajustá el puerto si no usás `8080`
+3. Listo. El archivo real está en `.gitignore`, solo se sube el `.example`.
+
 ---
 
 ## 🏃 Instrucciones de Ejecución
