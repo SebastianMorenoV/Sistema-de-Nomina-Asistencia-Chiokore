@@ -1,4 +1,8 @@
 package com.chiokore.asistencianomina.repositories;
 import com.chiokore.asistencianomina.domain.entities.Rol;
 import org.springframework.data.jpa.repository.JpaRepository;
-public interface RolRepository extends JpaRepository<Rol, Long> {}
+import java.util.Optional;
+
+public interface RolRepository extends JpaRepository<Rol, Long> {
+	Optional<Rol> findByNombre(String nombre);
+}

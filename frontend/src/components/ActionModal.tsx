@@ -1,4 +1,3 @@
-import React from 'react';
 import { Sun, Moon, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 interface Props {
