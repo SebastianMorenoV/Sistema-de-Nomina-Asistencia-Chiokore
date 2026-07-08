@@ -1,14 +1,3 @@
-import React from 'react';
-import { Sun, Moon, ArrowLeft } from 'lucide-react';
-
-interface Props {
-  empleado: any;
-  onAction: (tipo: 'ENTRADA' | 'SALIDA') => void;
-  onCancel: () => void;
-}
-
-// NOTE: This component was accidentally mixed with ActionModal logic before, 
-// let's restore the pure EmpleadoCard functionality
 export default function EmpleadoCard({ empleado, onSelect, isCompanionMode }: any) {
   const handleClick = () => {
     if (!isCompanionMode) {

@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 @Data
 @Entity
@@ -84,5 +85,20 @@ public class Empleado implements UserDetails {
     @Override
     public boolean isEnabled() {
         return activo != null ? activo : true;
+    }
+
+    /**
+     * Indica si el empleado pertenece al rol de administrador.
+     * Se usa para separar el login tradicional del flujo kiosco.
+     */
+    public boolean esAdministrador() {
+        return rol != null && Objects.equals("ADMINISTRADOR", rol.getNombre());
+    }
+
+    /**
+     * Indica si el empleado pertenece al rol de trabajador.
+     */
+    public boolean esTrabajador() {
+        return rol != null && Objects.equals("TRABAJADOR", rol.getNombre());
     }
 }

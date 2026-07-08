@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Checador from './pages/Checador';
 import AdminDashboard from './pages/AdminDashboard';

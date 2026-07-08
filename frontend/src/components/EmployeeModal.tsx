@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 export default function EmployeeModal({ emp, onSave, onClose }: any) {
   const [formData, setFormData] = useState({

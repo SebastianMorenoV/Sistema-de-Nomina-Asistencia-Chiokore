@@ -7,7 +7,10 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "asistencias")
+@Table(
+    name = "asistencias",
+    uniqueConstraints = @UniqueConstraint(name = "uk_asistencias_empleado_fecha", columnNames = {"empleado_id", "fecha"})
+)
 public class Asistencia {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

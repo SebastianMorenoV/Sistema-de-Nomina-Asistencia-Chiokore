@@ -12,8 +12,11 @@ spring.jpa.properties.hibernate.format_sql=true
 # Servidor
 server.port=8080
 
-# JWT (jjwt + HMAC-SHA256). Genera un secreto: openssl rand -base64 32
-jwt.secret=GENERA_TU_PROPIO_SECRETO_BASE64_AQUI
+# JWT (RS256). Si no existen archivos locales, el servidor puede generar una clave efímera.
+jwt.issuer=chiokore-nomina-idp
+jwt.rsa.key-id=chiokore-nomina-v1
+jwt.rsa.private-key-path=src/main/resources/keys/private_key.pem
+jwt.rsa.public-key-path=src/main/resources/keys/public_key.pem
 jwt.access-expiration=86400
 
 # Data seeding via DataInitializer (CommandLineRunner)

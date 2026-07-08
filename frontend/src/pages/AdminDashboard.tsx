@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, FileSpreadsheet, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Printer, Trash2, Edit, Send, Search, Clock, Download } from 'lucide-react';
+import { Users, CalendarDays, FileSpreadsheet, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Printer, Trash2, Edit, Send, Clock, Download, ShieldCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import axios from 'axios';
 import ReceiptTemplate from '../components/ReceiptTemplate';
 import EmployeeModal from '../components/EmployeeModal';
-
-const API_URL = 'http://localhost:8080/api';
+import {
+  assignHorario,
+  deleteEmpleado,
+  getEmpleados,
+  getHorarios,
+  getNominaSemanal,
+  saveEmpleado,
+} from '../services/api';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('nomina');
@@ -57,13 +62,13 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const resEmp = await axios.get(`${API_URL}/empleados`);
+      const resEmp = await getEmpleados();
       setMockEmpleados(Array.isArray(resEmp.data) ? resEmp.data : []);
       
-      const resNom = await axios.get(`${API_URL}/nominas/semanal${getWeekRange(semana)}`);
+      const resNom = await getNominaSemanal(getWeekRange(semana));
       setAsistenciasNomina(Array.isArray(resNom.data) ? resNom.data : []);
 
-      const resHor = await axios.get(`${API_URL}/horarios`);
+      const resHor = await getHorarios();
       setHorarios(Array.isArray(resHor.data) ? resHor.data : []);
     } catch (err) {
       console.error("Error fetching data", err);
@@ -80,12 +85,8 @@ export default function AdminDashboard() {
         rol: { id: data.rolId },
         tipoContrato: { id: data.tipoContratoId }
       };
-      
-      if (modalEmp?.isNew) {
-        await axios.post(`${API_URL}/empleados`, payload);
-      } else {
-        await axios.put(`${API_URL}/empleados/${data.id}`, payload);
-      }
+
+      await saveEmpleado(payload);
       fetchData();
       setModalEmp(null);
     } catch(err) {
@@ -96,7 +97,7 @@ export default function AdminDashboard() {
   const handleDelete = async (id: number) => {
     if(confirm('¿Seguro que deseas eliminar lógicamente a este empleado?')) {
       try {
-        await axios.delete(`${API_URL}/empleados/${id}`);
+        await deleteEmpleado(id);
         fetchData();
       } catch(err) {
         alert("Error al eliminar");
@@ -222,7 +223,7 @@ export default function AdminDashboard() {
       if (turnoId === 't1' || turnoId === 'v1') horaInicio = '09:00';
       if (turnoId === 't2' || turnoId === 'v2') horaInicio = '15:00';
       
-      await axios.post(`${API_URL}/horarios/assign`, {
+      await assignHorario({
         diaSemana: dia,
         horaInicio: horaInicio,
         oldEmpleadoId: oldEmpId ? parseInt(oldEmpId) : null,
@@ -496,6 +497,15 @@ export default function AdminDashboard() {
       </div>
 
       <main className="flex-1 p-12 overflow-y-auto print:p-0">
+          <div className="mb-8 rounded-3xl border border-sky-200 bg-sky-50 px-6 py-4 shadow-sm flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between print:hidden">
+            <div className="flex items-center gap-3 text-sky-900">
+              <ShieldCheck size={22} />
+              <div>
+                <p className="font-black uppercase tracking-wide text-sm">Panel administrativo</p>
+                <p className="text-sm text-sky-800">Conectado al flujo de autenticación y operación del sistema.</p>
+              </div>
+            </div>
+          </div>
           {activeTab === 'empleados' && renderEmpleados()}
           {activeTab === 'horarios' && renderHorarios()}
           {activeTab === 'nomina' && renderNomina()}

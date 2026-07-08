@@ -34,3 +34,8 @@ build/
 
 ### Secrets ###
 src/main/resources/application.properties
+src/main/resources/keys/
+*.pem
+*.jks
+*.p12
+*.pfx

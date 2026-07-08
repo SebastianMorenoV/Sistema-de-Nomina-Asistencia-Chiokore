@@ -17,6 +17,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import org.springframework.http.HttpMethod;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -31,6 +33,14 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/kiosk-login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/empleados").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/horarios").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/horarios", "/api/horarios/assign").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/nominas/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/asistencias").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/asistencias/registrar/**").permitAll()
                 .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )
