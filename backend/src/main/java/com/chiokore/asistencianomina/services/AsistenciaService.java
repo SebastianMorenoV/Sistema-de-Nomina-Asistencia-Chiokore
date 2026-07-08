@@ -4,8 +4,10 @@ import com.chiokore.asistencianomina.domain.entities.Empleado;
 import com.chiokore.asistencianomina.repositories.AsistenciaRepository;
 import com.chiokore.asistencianomina.repositories.EmpleadoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -18,26 +20,50 @@ public class AsistenciaService {
     private final AsistenciaRepository repository;
     private final EmpleadoRepository empleadoRepository;
 
+    @Transactional
     public Asistencia registrarToggle(Long empleadoId) {
+        return registrarMovimiento(empleadoId, null);
+    }
+
+    @Transactional
+    public Asistencia registrarMovimiento(Long empleadoId, String movimientoSolicitado) {
         LocalDate hoy = LocalDate.now();
+        Empleado empleado = empleadoRepository.findById(empleadoId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empleado no encontrado."));
+
         List<Asistencia> asistenciasHoy = repository.findByEmpleadoIdAndFecha(empleadoId, hoy);
-        
+        String movimientoNormalizado = movimientoSolicitado == null ? null : movimientoSolicitado.trim().toUpperCase();
+
         Asistencia asistencia;
         if (asistenciasHoy.isEmpty()) {
+            if ("SALIDA".equals(movimientoNormalizado)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Primero debe registrar la entrada de hoy.");
+            }
+
             asistencia = new Asistencia();
-            Empleado e = empleadoRepository.findById(empleadoId).orElseThrow();
-            asistencia.setEmpleado(e);
+            asistencia.setEmpleado(empleado);
             asistencia.setFecha(hoy);
             asistencia.setEntrada(LocalDateTime.now());
+            try {
+                return repository.saveAndFlush(asistencia);
+            } catch (DataIntegrityViolationException ex) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una asistencia registrada para hoy.");
+            }
         } else {
             asistencia = asistenciasHoy.get(0);
             if (asistencia.getSalida() == null) {
+                if ("ENTRADA".equals(movimientoNormalizado) && asistencia.getEntrada() != null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La entrada de hoy ya fue registrada.");
+                }
                 asistencia.setSalida(LocalDateTime.now());
                 if (asistencia.getEntrada() != null && asistencia.getSalida() != null) {
                     long diffMinutes = java.time.Duration.between(asistencia.getEntrada(), asistencia.getSalida()).toMinutes();
                     asistencia.setHorasCalculadas(diffMinutes / 60.0);
                 }
             } else {
+                if ("ENTRADA".equals(movimientoNormalizado)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El empleado ya registró su jornada completa hoy.");
+                }
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El empleado ya completó su turno de hoy.");
             }
         }

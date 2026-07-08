@@ -73,7 +73,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El acceso por kiosco solo está habilitado para trabajadores.");
         }
 
-        Asistencia asistencia = asistenciaService.registrarToggle(empleado.getId());
+        Asistencia asistencia = asistenciaService.registrarMovimiento(empleado.getId(), request.getMovimiento());
         boolean esEntrada = asistencia.getSalida() == null;
 
         String token = jwtService.generateAccessToken(

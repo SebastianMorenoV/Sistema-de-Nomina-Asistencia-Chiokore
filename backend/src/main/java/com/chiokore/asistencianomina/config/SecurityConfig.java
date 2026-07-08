@@ -35,6 +35,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/kiosk-login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/empleados").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/horarios").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/horarios", "/api/horarios/assign").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/nominas/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/asistencias").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/asistencias/registrar/**").permitAll()
                 .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .anyRequest().authenticated()
             )

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, FileSpreadsheet, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Printer, Trash2, Edit, Send, Clock, Download, ShieldCheck, KeyRound } from 'lucide-react';
+import { Users, CalendarDays, FileSpreadsheet, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Printer, Trash2, Edit, Send, Clock, Download, ShieldCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ReceiptTemplate from '../components/ReceiptTemplate';
 import EmployeeModal from '../components/EmployeeModal';
@@ -10,7 +10,6 @@ import {
   getEmpleados,
   getHorarios,
   getNominaSemanal,
-  isUsingMockApi,
   saveEmpleado,
 } from '../services/api';
 
@@ -502,15 +501,9 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-3 text-sky-900">
               <ShieldCheck size={22} />
               <div>
-                <p className="font-black uppercase tracking-wide text-sm">Panel de pruebas del IdP</p>
-                <p className="text-sm text-sky-800">Los datos se mantienen localmente hasta que el equipo de UX entregue las pantallas finales.</p>
+                <p className="font-black uppercase tracking-wide text-sm">Panel administrativo</p>
+                <p className="text-sm text-sky-800">Conectado al flujo de autenticación y operación del sistema.</p>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-3 items-center text-sm font-bold text-sky-900">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 border border-sky-200">
-                <KeyRound size={16} />
-                {isUsingMockApi() ? 'Modo simulación activo' : 'Conectado al backend real'}
-              </span>
             </div>
           </div>
           {activeTab === 'empleados' && renderEmpleados()}

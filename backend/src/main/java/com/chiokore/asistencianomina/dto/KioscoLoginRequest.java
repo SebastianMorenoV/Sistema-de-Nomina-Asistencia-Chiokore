@@ -14,4 +14,10 @@ public class KioscoLoginRequest {
     @NotNull
     @Positive
     private Long empleadoId;
+
+    /**
+     * Movimiento solicitado desde el kiosco.
+     * Si no se envía, el backend conserva el comportamiento de alternancia.
+     */
+    private String movimiento;
 }

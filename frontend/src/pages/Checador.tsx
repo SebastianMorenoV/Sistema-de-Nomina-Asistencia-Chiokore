@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, KeyRound, Settings, Users } from 'lucide-react';
+import { BadgeCheck, Settings, Users } from 'lucide-react';
 import EmpleadoCard from '../components/EmpleadoCard';
 import ActionModal from '../components/ActionModal';
 import Screensaver from '../components/Screensaver';
 import SuccessScreen from '../components/SuccessScreen';
-import { getEmpleados, isUsingMockApi, kioskLogin } from '../services/api';
+import { getApiErrorMessage, getEmpleados, kioskLogin } from '../services/api';
 
 export default function Checador() {
   type Employee = {
@@ -20,9 +20,9 @@ export default function Checador() {
   const [empleados, setEmpleados] = useState<Employee[]>([]);
   const [selectedEmpleado, setSelectedEmpleado] = useState<Employee | null>(null);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);
-  const [lastToken, setLastToken] = useState<string | null>(null);
   const [isCompanionMode, setIsCompanionMode] = useState(false);
   const [registrosHoy, setRegistrosHoy] = useState<Record<number, string>>({});
+  const [isRegistering, setIsRegistering] = useState(false);
   const [isIdle, setIsIdle] = useState(false);
   const idleTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,17 +65,22 @@ export default function Checador() {
   const handleAction = async (tipo: 'ENTRADA' | 'SALIDA') => {
     if (!selectedEmpleado) return;
 
+    setIsRegistering(true);
     try {
-      const response = await kioskLogin(selectedEmpleado.id);
+      const response = await kioskLogin(selectedEmpleado.id, tipo);
       setRegistrosHoy((prev) => ({ ...prev, [selectedEmpleado.id]: response.data.movimiento }));
-      setLastToken(response.data.accessToken);
-      setShowSuccess(`${tipo} registrada con éxito${isUsingMockApi() ? ' en modo simulación' : ''}`);
+      console.info('JWT emitido y enviado al sistema consumidor', {
+        empleadoId: response.data.empleadoId,
+        movimiento: response.data.movimiento,
+        rol: response.data.rol,
+      });
+      setShowSuccess(`${response.data.movimiento} registrada con éxito`);
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } }; message?: string };
-      alert(error?.response?.data?.message || error?.message || 'Error al registrar asistencia');
+      alert(getApiErrorMessage(err, 'Error al registrar asistencia'));
+    } finally {
+      setIsRegistering(false);
+      setSelectedEmpleado(null);
     }
-
-    setSelectedEmpleado(null);
   };
 
   const finishAction = () => {
@@ -91,16 +96,9 @@ export default function Checador() {
         <div className="flex items-center gap-3 text-emerald-900">
           <BadgeCheck size={22} />
           <div>
-            <p className="font-black uppercase tracking-wide text-sm">Simulador local de IdP</p>
-            <p className="text-sm text-emerald-800">El checador opera con datos mock mientras se integra con los otros sistemas.</p>
+            <p className="font-black uppercase tracking-wide text-sm">Kiosco de asistencia</p>
+            <p className="text-sm text-emerald-800">Registro en tiempo real con emisión de JWT para el sistema consumidor.</p>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-3 items-center text-sm font-bold text-emerald-900">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 border border-emerald-200">
-            <KeyRound size={16} />
-            {isUsingMockApi() ? 'Mock API activa' : 'API real activa'}
-          </span>
-          {lastToken && <span className="rounded-full bg-white px-4 py-2 border border-emerald-200 max-w-full truncate">JWT simulado: {lastToken.slice(0, 42)}...</span>}
         </div>
       </div>
 
@@ -138,7 +136,9 @@ export default function Checador() {
         <ActionModal
           empleado={selectedEmpleado}
           onAction={handleAction}
+          isLoading={isRegistering}
           onCancel={() => {
+            if (isRegistering) return;
             setSelectedEmpleado(null);
             resetIdleTimer();
           }}
@@ -154,7 +154,7 @@ export default function Checador() {
 
       {Object.keys(registrosHoy).length > 0 && (
         <div className="fixed bottom-6 left-6 z-40 rounded-2xl bg-stone-900 text-white px-4 py-3 shadow-2xl text-sm border border-stone-700">
-          Último movimiento simulado: {Object.values(registrosHoy).at(-1)}
+          Último movimiento: {Object.values(registrosHoy).at(-1)}
         </div>
       )}
     </div>

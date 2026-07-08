@@ -23,6 +23,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("status", ex.getStatusCode().value());
         body.put("error", ex.getReason());
+        body.put("message", ex.getReason());
         return ResponseEntity.status(ex.getStatusCode()).body(body);
     }
 
@@ -32,6 +33,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("status", 404);
         body.put("error", ex.getMessage());
+        body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
@@ -41,6 +43,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("status", 404);
         body.put("error", ex.getMessage() != null ? ex.getMessage() : "Recurso no encontrado");
+        body.put("message", ex.getMessage() != null ? ex.getMessage() : "Recurso no encontrado");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
@@ -50,6 +53,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("status", 400);
         body.put("error", "Error de validación");
+        body.put("message", "Error de validación");
         body.put("violations", ex.getConstraintViolations().stream()
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .collect(Collectors.toList()));
@@ -62,6 +66,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("status", 400);
         body.put("error", "Error de validación");
+        body.put("message", "Error de validación");
         body.put("fieldErrors", ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.toList()));
