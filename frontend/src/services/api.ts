@@ -91,24 +91,6 @@ export async function assignHorario(payload: { diaSemana: string; horaInicio: st
   return api.post('/horarios/assign', payload);
 }
 
-export async function getNominaSemanal(query: string) {
-  try {
-    const response = await api.get(`/nominas/semanal${query}`);
-    return response;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return { data: [] };
-    }
-
-    if (axios.isAxiosError(error) && error.response?.status === 500) {
-      console.warn('El backend no expone aún el cálculo de nómina; se mostrará vacío.');
-      return { data: [] };
-    }
-
-    throw error;
-  }
-}
-
 export async function registrarAsistencia(empleadoId: number) {
   return api.post(`/asistencias/registrar/${empleadoId}`);
 }

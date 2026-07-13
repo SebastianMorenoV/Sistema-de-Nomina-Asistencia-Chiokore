@@ -1,34 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, FileSpreadsheet, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Printer, Trash2, Edit, Send, Clock, Download, ShieldCheck } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import ReceiptTemplate from '../components/ReceiptTemplate';
+import { Users, CalendarDays, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Trash2, Edit, Clock, ShieldCheck } from 'lucide-react';
 import EmployeeModal from '../components/EmployeeModal';
 import {
   assignHorario,
   deleteEmpleado,
   getEmpleados,
   getHorarios,
-  getNominaSemanal,
   saveEmpleado,
 } from '../services/api';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('nomina');
+  const [activeTab, setActiveTab] = useState('empleados');
   const [expandedEmp, setExpandedEmp] = useState<number | null>(null);
-  const [selectedReceiptEmp, setSelectedReceiptEmp] = useState<any>(null);
   const [selectedCandidato, setSelectedCandidato] = useState<any>(null);
-  
+
   // CRUD State
   const [mockEmpleados, setMockEmpleados] = useState<any[]>([]);
-  const [asistenciasNomina, setAsistenciasNomina] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [modalEmp, setModalEmp] = useState<{data: any, isNew: boolean} | null>(null);
-  const [semana, setSemana] = useState<string>('');
 
   const dias = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
-  const diasFechas = ['2', '3', '4', '5', '6', '7'];
-  
+
   const turnos = [
     { id: 't1', nombre: '9:00 A 1:00 PM', tipo: 'Pagado', cupos: 3 },
     { id: 'v1', nombre: 'VOLUNTARIO', tipo: 'Voluntario', cupos: 1 },
@@ -36,44 +29,20 @@ export default function AdminDashboard() {
     { id: 'v2', nombre: 'VOLUNTARIO', tipo: 'Voluntario', cupos: 1 }
   ];
 
-  const getWeekRange = (wStr: string) => {
-    if (!wStr) return '';
-    const [yearStr, weekStr] = wStr.split('-W');
-    const y = parseInt(yearStr);
-    const w = parseInt(weekStr);
-    const simple = new Date(y, 0, 1 + (w - 1) * 7);
-    const dow = simple.getDay();
-    const ISOweekStart = simple;
-    if (dow <= 4)
-        ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
-    else
-        ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
-    
-    const start = new Date(ISOweekStart);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    
-    return `?fechaInicio=${start.toISOString().split('T')[0]}&fechaFin=${end.toISOString().split('T')[0]}`;
-  };
-
   useEffect(() => {
     fetchData();
-  }, [semana]);
+  }, []);
 
   const fetchData = async () => {
     try {
       const resEmp = await getEmpleados();
       setMockEmpleados(Array.isArray(resEmp.data) ? resEmp.data : []);
-      
-      const resNom = await getNominaSemanal(getWeekRange(semana));
-      setAsistenciasNomina(Array.isArray(resNom.data) ? resNom.data : []);
 
       const resHor = await getHorarios();
       setHorarios(Array.isArray(resHor.data) ? resHor.data : []);
     } catch (err) {
       console.error("Error fetching data", err);
       setMockEmpleados([]);
-      setAsistenciasNomina([]);
       setHorarios([]);
     }
   };
@@ -105,27 +74,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleExportExcel = () => {
-    // Preparar datos para Excel a partir de asistenciasNomina
-    const exportData = asistenciasNomina.map(r => ({
-      "Empleado": r.emp,
-      "Lunes Entrada": (r as any).lu.e, "Lunes Salida": (r as any).lu.s,
-      "Martes Entrada": (r as any).ma.e, "Martes Salida": (r as any).ma.s,
-      "Miercoles Entrada": (r as any).mi.e, "Miercoles Salida": (r as any).mi.s,
-      "Jueves Entrada": (r as any).ju.e, "Jueves Salida": (r as any).ju.s,
-      "Viernes Entrada": (r as any).vi.e, "Viernes Salida": (r as any).vi.s,
-      "Sabado Entrada": (r as any).sa.e, "Sabado Salida": (r as any).sa.s,
-      "Total Horas": r.horas
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sábana Nómina");
-    XLSX.writeFile(workbook, "Sabana_Nomina_Chiokore.xlsx");
-  };
-
   const renderEmpleados = () => (
-    <div className="print:hidden">
+    <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold text-stone-800">Catálogo de Personal</h1>
         <button onClick={() => setModalEmp({data: null, isNew: true})} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2">
@@ -157,7 +107,7 @@ export default function AdminDashboard() {
                   <td className="p-4 text-right flex justify-end gap-2">
                     <button onClick={() => setModalEmp({data: emp, isNew: false})} className="p-2 text-stone-400 hover:text-blue-500"><Edit size={20}/></button>
                     <button onClick={() => handleDelete(emp.id)} className="p-2 text-stone-400 hover:text-red-500"><Trash2 size={20}/></button>
-                    <button 
+                    <button
                       onClick={() => setExpandedEmp(expandedEmp === emp.id ? null : emp.id)}
                       className="text-stone-500 hover:text-orange-500 transition-colors p-2"
                     >
@@ -180,10 +130,6 @@ export default function AdminDashboard() {
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex-1">
                           <p className="text-sm text-stone-500 font-bold uppercase tracking-wider mb-1">Emergencia</p>
                           <p className="text-stone-800">{emp.contactoEmergenciaNombre}</p>
-                        </div>
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex-1">
-                          <p className="text-sm text-stone-500 font-bold uppercase tracking-wider mb-1">Nómina Base</p>
-                          <p className="text-stone-800 text-2xl font-black text-emerald-600">${emp.tarifaHora}<span className="text-sm text-stone-500">/hr</span></p>
                         </div>
                       </div>
                     </td>
@@ -222,7 +168,7 @@ export default function AdminDashboard() {
       let horaInicio = '';
       if (turnoId === 't1' || turnoId === 'v1') horaInicio = '09:00';
       if (turnoId === 't2' || turnoId === 'v2') horaInicio = '15:00';
-      
+
       await assignHorario({
         diaSemana: dia,
         horaInicio: horaInicio,
@@ -236,7 +182,7 @@ export default function AdminDashboard() {
   };
 
   const renderHorarios = () => (
-    <div className="print:hidden">
+    <div>
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-4xl font-bold text-stone-800">Matriz de Horarios</h1>
@@ -269,7 +215,7 @@ export default function AdminDashboard() {
                     )}
                     {dias.map(dia => (
                       <td key={`${dia}-${turno.id}-${i}`} className="p-2 border-r border-stone-200">
-                        <select 
+                        <select
                           className={`w-full p-2 text-sm font-bold border-none outline-none rounded ${turno.tipo === 'Voluntario' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}
                           value={getAssignedEmployeeId(dia, turno.id, i)}
                           onChange={(e) => {
@@ -294,127 +240,8 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const renderNomina = () => (
-    <>
-      <div className="flex justify-between items-center mb-8 print:hidden">
-        <div>
-          <h1 className="text-4xl font-bold text-stone-800">Cálculo de Nómina</h1>
-          <p className="text-stone-500 mt-2">Visión semanal de Entradas y Salidas.</p>
-        </div>
-        <div className="flex gap-4 items-end">
-          <div className="flex flex-col">
-            <label className="text-xs font-bold text-stone-500 uppercase mb-1 tracking-wider">Semana</label>
-            <input 
-              type="week" 
-              className="border-2 border-stone-200 focus:border-orange-500 p-3 rounded-lg text-sm font-bold text-stone-800 outline-none w-48"
-              value={semana}
-              onChange={(e) => setSemana(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col">
-             <label className="text-xs font-bold text-stone-500 uppercase mb-1 tracking-wider">Seleccionar Empleado (Para Ticket)</label>
-             <select 
-              className="border-2 border-stone-200 focus:border-orange-500 p-3 rounded-lg text-sm font-bold text-stone-800 outline-none w-64"
-              onChange={(e) => {
-                const emp = mockEmpleados.find(m => m.id === parseInt(e.target.value));
-                if(emp) {
-                  setSelectedReceiptEmp({
-                    nombre: emp.nombre,
-                    fechaInicio: "02/02/2026", fechaFin: "07/02/2026",
-                    horas: "12 hrs", tarifa: emp.tarifa, 
-                    total: (parseFloat(emp.tarifa) * 12).toFixed(2),
-                    fechaEmision: "08/02/2026"
-                  });
-                } else {
-                  setSelectedReceiptEmp(null);
-                }
-              }}
-             >
-              <option value="">- Todos (Ver Tabla) -</option>
-              {(Array.isArray(mockEmpleados) ? mockEmpleados : []).filter(e => e.tipoContrato?.nombre === 'Pagado').map(e => (
-                <option key={e.id} value={e.id}>{e.nombre}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={() => alert("Simulando envío al módulo de Gastos...")} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2">
-            <Send size={20}/> Enviar a Gastos
-          </button>
-          <button 
-            disabled={!selectedReceiptEmp}
-            onClick={() => window.print()} 
-            className={`px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2 ${selectedReceiptEmp ? 'bg-stone-800 hover:bg-stone-900 text-white shadow-xl' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
-          >
-            <Printer size={20}/> Imprimir Recibo de Nómina
-          </button>
-          <button 
-            onClick={handleExportExcel}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2 shadow-xl"
-          >
-            <Download size={20}/> Exportar Sábana (Excel)
-          </button>
-        </div>
-      </div>
-
-      {/* Sábana Semanal (Calendario) */}
-      <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-x-auto print:hidden">
-        <table className="w-full text-center border-collapse min-w-[1200px] text-xs">
-          <thead>
-            {/* Header Fechas */}
-            <tr className="bg-stone-50">
-              <th className="p-2 border border-stone-300 bg-yellow-200 text-left font-black" colSpan={1}>
-                {semana ? `Semana: ${semana}` : 'SEMANA ACTUAL'}
-              </th>
-              {diasFechas.map(num => (
-                <th key={num} colSpan={2} className="p-1 border border-stone-300 font-bold text-stone-600">{num}</th>
-              ))}
-              <th className="border border-stone-300"></th>
-            </tr>
-            {/* Header Dias */}
-            <tr className="bg-stone-50">
-              <th className="border border-stone-300"></th>
-              {dias.map(dia => (
-                <th key={dia} colSpan={2} className="p-1 border border-stone-300 text-stone-600 font-bold uppercase">{dia}</th>
-              ))}
-              <th className="p-2 border border-stone-300 text-stone-800 font-black">TOTAL HORAS</th>
-            </tr>
-            {/* Header Entrada/Salida */}
-            <tr className="bg-stone-50">
-              <th className="p-2 border border-stone-300 text-left font-bold text-stone-600">HORA<br/>EMPLEADOS</th>
-              {dias.map(dia => (
-                <React.Fragment key={`${dia}-es`}>
-                  <th className="p-1 border border-stone-300 text-stone-500">ENTRADA</th>
-                  <th className="p-1 border border-stone-300 text-stone-500">SALIDA</th>
-                </React.Fragment>
-              ))}
-              <th className="border border-stone-300 text-stone-500 font-bold">SEMANAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {asistenciasNomina.map((r, i) => (
-              <tr key={i} className="hover:bg-blue-50/50">
-                <td className="p-2 border border-stone-300 font-bold text-left text-stone-800">{r.emp}</td>
-                {['lu', 'ma', 'mi', 'ju', 'vi', 'sa'].map((d: any) => (
-                  <React.Fragment key={d}>
-                    <td className={`p-1 border border-stone-300 ${(r as any)[d].e ? 'bg-orange-100' : ''}`}>{(r as any)[d].e}</td>
-                    <td className={`p-1 border border-stone-300 ${(r as any)[d].s ? 'bg-orange-100' : ''}`}>{(r as any)[d].s}</td>
-                  </React.Fragment>
-                ))}
-                <td className="p-2 border border-stone-300 font-bold bg-green-100 text-green-800">{r.horas}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Recibo físico oculto (Ticket) */}
-      <div className="hidden print:block">
-        <ReceiptTemplate data={selectedReceiptEmp} />
-      </div>
-    </>
-  );
-
   const renderCandidatos = () => (
-    <div className="print:hidden">
+    <div>
       <div>
         <h1 className="text-4xl font-bold text-stone-800">Lista de Espera</h1>
         <p className="text-stone-500 mt-2">Personal interesado en unirse a Chiokore Bazar.</p>
@@ -450,7 +277,7 @@ export default function AdminDashboard() {
               </div>
               <h2 className="text-2xl font-black text-stone-800">{selectedCandidato.nombre}</h2>
               <p className="text-sm font-bold mt-1 text-indigo-600 uppercase">{selectedCandidato.tipo}</p>
-              
+
               <div className="mt-6 text-left bg-stone-50 p-4 rounded-lg">
                 <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Detalles Adicionales</p>
                 <p className="text-stone-800 text-sm"><strong>Registro:</strong> {selectedCandidato.fechaRegistro}</p>
@@ -469,8 +296,8 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div className="flex h-screen bg-stone-100 font-sans print:bg-white print:h-auto">
-      <div className="w-72 bg-stone-900 text-white flex flex-col print:hidden">
+    <div className="flex h-screen bg-stone-100 font-sans">
+      <div className="w-72 bg-stone-900 text-white flex flex-col">
         <div className="p-8">
           <h2 className="text-3xl font-black text-orange-500">Chiokore</h2>
           <p className="text-stone-400 font-bold text-sm tracking-widest mt-1">ADMINISTRACIÓN</p>
@@ -481,9 +308,6 @@ export default function AdminDashboard() {
           </button>
           <button onClick={() => setActiveTab('horarios')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'horarios' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
             <CalendarDays size={24} /> Horarios por Turno
-          </button>
-          <button onClick={() => setActiveTab('nomina')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'nomina' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
-            <FileSpreadsheet size={24} /> Nóminas y Recibos
           </button>
           <button onClick={() => setActiveTab('candidatos')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'candidatos' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
             <UserPlus size={24} /> Lista de Espera
@@ -496,8 +320,8 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <main className="flex-1 p-12 overflow-y-auto print:p-0">
-          <div className="mb-8 rounded-3xl border border-sky-200 bg-sky-50 px-6 py-4 shadow-sm flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between print:hidden">
+      <main className="flex-1 p-12 overflow-y-auto">
+          <div className="mb-8 rounded-3xl border border-sky-200 bg-sky-50 px-6 py-4 shadow-sm flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3 text-sky-900">
               <ShieldCheck size={22} />
               <div>
@@ -508,7 +332,6 @@ export default function AdminDashboard() {
           </div>
           {activeTab === 'empleados' && renderEmpleados()}
           {activeTab === 'horarios' && renderHorarios()}
-          {activeTab === 'nomina' && renderNomina()}
           {activeTab === 'candidatos' && renderCandidatos()}
         </main>
     </div>
