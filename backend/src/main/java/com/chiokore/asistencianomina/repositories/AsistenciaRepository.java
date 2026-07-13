@@ -8,4 +8,5 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
     List<Asistencia> findByEmpleadoId(Long empleadoId);
     List<Asistencia> findByEmpleadoIdAndFecha(Long empleadoId, LocalDate fecha);
     List<Asistencia> findByEmpleadoIdAndFechaBetween(Long empleadoId, LocalDate inicio, LocalDate fin);
+    List<Asistencia> findByFechaBetween(LocalDate inicio, LocalDate fin);
 }

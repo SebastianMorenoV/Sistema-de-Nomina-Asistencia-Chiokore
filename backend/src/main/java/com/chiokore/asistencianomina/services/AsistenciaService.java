@@ -10,15 +10,41 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.chiokore.asistencianomina.dto.HorasEmpleadoDto;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class AsistenciaService {
     private final AsistenciaRepository repository;
     private final EmpleadoRepository empleadoRepository;
+
+    /**
+     * Suma las horas trabajadas por empleado en un rango de fechas.
+     * Lo consume el modulo de Nomina para el corte quincenal.
+     * Las asistencias sin salida registrada (horasCalculadas null) cuentan como 0.
+     */
+    public List<HorasEmpleadoDto> obtenerHorasPorRango(LocalDate desde, LocalDate hasta) {
+        Map<Long, HorasEmpleadoDto> acumulado = new LinkedHashMap<>();
+        for (Asistencia a : repository.findByFechaBetween(desde, hasta)) {
+            Empleado empleado = a.getEmpleado();
+            if (empleado == null) {
+                continue;
+            }
+            double horas = a.getHorasCalculadas() != null ? a.getHorasCalculadas() : 0.0;
+            HorasEmpleadoDto dto = acumulado.computeIfAbsent(
+                    empleado.getId(),
+                    id -> new HorasEmpleadoDto(id, empleado.getNombre(), 0.0));
+            dto.setHorasTotales(dto.getHorasTotales() + horas);
+        }
+        return new ArrayList<>(acumulado.values());
+    }
 
     @Transactional
     public Asistencia registrarToggle(Long empleadoId) {
