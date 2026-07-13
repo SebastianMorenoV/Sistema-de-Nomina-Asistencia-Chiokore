@@ -4,7 +4,7 @@ export default function EmployeeModal({ emp, onSave, onClose }: any) {
   const [formData, setFormData] = useState({
     id: emp?.id,
     nombre: emp?.nombre || '', 
-    rolId: emp?.rol?.id || 1, 
+    rolId: emp?.rol?.id || 2,
     tipoContratoId: emp?.tipoContrato?.id || 1, 
     tarifaHora: emp?.tarifaHora || '', 
     tipoSangre: emp?.tipoSangre || '', 
@@ -50,7 +50,7 @@ export default function EmployeeModal({ emp, onSave, onClose }: any) {
           <div>
             <label className="block text-sm font-bold text-stone-600">Rol</label>
             <select className="w-full border p-2 rounded" value={formData.rolId} onChange={e => setFormData({...formData, rolId: Number(e.target.value)})}>
-              <option value={1}>Trabajador</option><option value={2}>Administrador</option>
+              <option value={2}>Trabajador</option><option value={1}>Administrador</option>
             </select>
           </div>
           <div>
