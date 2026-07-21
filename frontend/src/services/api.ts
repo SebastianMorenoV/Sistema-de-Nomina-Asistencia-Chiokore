@@ -62,7 +62,7 @@ type EmpleadoFormPayload = Partial<Empleado> & {
 };
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8081/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
 });
 
 function unwrapListResponse<T>(data: T[] | PagedResponse<T>): T[] {
@@ -123,6 +123,21 @@ export async function kioskLogin(empleadoId: number, movimiento?: 'ENTRADA' | 'S
 
 export async function getPublicKey() {
   return api.get<PublicKeyResponse>('/auth/public-key');
+}
+
+export async function getCandidatos() {
+  return api.get<any>('/candidatos?size=100');
+}
+
+export async function saveCandidato(data: any) {
+  if (data.id) {
+    return api.put<any>(`/candidatos/${data.id}`, data);
+  }
+  return api.post<any>('/candidatos', data);
+}
+
+export async function deleteCandidato(id: number) {
+  return api.delete(`/candidatos/${id}`);
 }
 
 export function getApiErrorMessage(error: unknown, fallback = 'Error al procesar la solicitud') {

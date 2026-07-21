@@ -1,30 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, FileSpreadsheet, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Printer, Trash2, Edit, Send, Clock, Download, ShieldCheck } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import ReceiptTemplate from '../components/ReceiptTemplate';
+import { Users, CalendarDays, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Trash2, Edit, Clock, ShieldCheck, Search } from 'lucide-react';
 import EmployeeModal from '../components/EmployeeModal';
+import CandidatoModal from '../components/CandidatoModal';
 import {
   assignHorario,
   deleteEmpleado,
   getEmpleados,
   getHorarios,
-  getNominaSemanal,
   saveEmpleado,
+  getCandidatos,
+  saveCandidato,
+  deleteCandidato,
 } from '../services/api';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('nomina');
+  const [activeTab, setActiveTab] = useState('empleados');
   const [expandedEmp, setExpandedEmp] = useState<number | null>(null);
-  const [selectedReceiptEmp, setSelectedReceiptEmp] = useState<any>(null);
   const [selectedCandidato, setSelectedCandidato] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [candidatos, setCandidatos] = useState<any[]>([]);
   
   // CRUD State
   const [mockEmpleados, setMockEmpleados] = useState<any[]>([]);
-  const [asistenciasNomina, setAsistenciasNomina] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [modalEmp, setModalEmp] = useState<{data: any, isNew: boolean} | null>(null);
-  const [semana, setSemana] = useState<string>('');
+  const [modalCand, setModalCand] = useState<{data: any, isNew: boolean} | null>(null);
+  const [payoutModalCand, setPayoutModalCand] = useState<any>(null);
+  const [tempPayout, setTempPayout] = useState<string>('');
 
   const dias = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
   const diasFechas = ['2', '3', '4', '5', '6', '7'];
@@ -36,45 +39,79 @@ export default function AdminDashboard() {
     { id: 'v2', nombre: 'VOLUNTARIO', tipo: 'Voluntario', cupos: 1 }
   ];
 
-  const getWeekRange = (wStr: string) => {
-    if (!wStr) return '';
-    const [yearStr, weekStr] = wStr.split('-W');
-    const y = parseInt(yearStr);
-    const w = parseInt(weekStr);
-    const simple = new Date(y, 0, 1 + (w - 1) * 7);
-    const dow = simple.getDay();
-    const ISOweekStart = simple;
-    if (dow <= 4)
-        ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
-    else
-        ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
-    
-    const start = new Date(ISOweekStart);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    
-    return `?fechaInicio=${start.toISOString().split('T')[0]}&fechaFin=${end.toISOString().split('T')[0]}`;
-  };
 
   useEffect(() => {
     fetchData();
-  }, [semana]);
+  }, []);
 
   const fetchData = async () => {
     try {
       const resEmp = await getEmpleados();
       setMockEmpleados(Array.isArray(resEmp.data) ? resEmp.data : []);
       
-      const resNom = await getNominaSemanal(getWeekRange(semana));
-      setAsistenciasNomina(Array.isArray(resNom.data) ? resNom.data : []);
+      const resCand = await getCandidatos();
+      setCandidatos(Array.isArray(resCand.data?.content) ? resCand.data.content : (Array.isArray(resCand.data) ? resCand.data : []));
 
       const resHor = await getHorarios();
       setHorarios(Array.isArray(resHor.data) ? resHor.data : []);
     } catch (err) {
       console.error("Error fetching data", err);
       setMockEmpleados([]);
-      setAsistenciasNomina([]);
+      setCandidatos([]);
       setHorarios([]);
+    }
+  };
+
+  const handleSaveCand = async (data: any) => {
+    try {
+      const payload = {
+        ...data,
+        rol: { id: data.rolId },
+        tipoContrato: { id: data.tipoContratoId }
+      };
+      await saveCandidato(payload);
+      fetchData();
+      setModalCand(null);
+    } catch(err) {
+      alert("Error al guardar candidato");
+    }
+  };
+
+  const handleDeleteCand = async (id: number) => {
+    if(confirm('¿Seguro que deseas rechazar y eliminar a este candidato?')) {
+      try {
+        await deleteCandidato(id);
+        fetchData();
+        setSelectedCandidato(null);
+      } catch(err) {
+        alert("Error al eliminar");
+      }
+    }
+  };
+
+  const handleHireCandidato = async (cand: any, tarifa: number) => {
+    try {
+      const empPayload = {
+        nombre: cand.nombre,
+        urlAvatar: cand.urlAvatar,
+        rolId: cand.rol?.id,
+        tipoContratoId: cand.tipoContrato?.id,
+        tipoSangre: cand.tipoSangre,
+        condicionesMedicas: cand.condicionesMedicas,
+        contactoEmergenciaNombre: cand.contactoEmergenciaNombre,
+        contactoEmergenciaTelefono: cand.contactoEmergenciaTelefono,
+        requiereApoyo: cand.requiereApoyo,
+        tarifaHora: tarifa
+      };
+      await saveEmpleado(empPayload);
+      await deleteCandidato(cand.id);
+      
+      fetchData();
+      setSelectedCandidato(null);
+      setPayoutModalCand(null);
+      setActiveTab('empleados');
+    } catch(err) {
+      alert("Error al contratar candidato");
     }
   };
 
@@ -105,24 +142,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleExportExcel = () => {
-    // Preparar datos para Excel a partir de asistenciasNomina
-    const exportData = asistenciasNomina.map(r => ({
-      "Empleado": r.emp,
-      "Lunes Entrada": (r as any).lu.e, "Lunes Salida": (r as any).lu.s,
-      "Martes Entrada": (r as any).ma.e, "Martes Salida": (r as any).ma.s,
-      "Miercoles Entrada": (r as any).mi.e, "Miercoles Salida": (r as any).mi.s,
-      "Jueves Entrada": (r as any).ju.e, "Jueves Salida": (r as any).ju.s,
-      "Viernes Entrada": (r as any).vi.e, "Viernes Salida": (r as any).vi.s,
-      "Sabado Entrada": (r as any).sa.e, "Sabado Salida": (r as any).sa.s,
-      "Total Horas": r.horas
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sábana Nómina");
-    XLSX.writeFile(workbook, "Sabana_Nomina_Chiokore.xlsx");
-  };
 
   const renderEmpleados = () => (
     <div className="print:hidden">
@@ -133,6 +152,19 @@ export default function AdminDashboard() {
         </button>
       </div>
 
+      <div className="mb-6 relative">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-stone-400" />
+        </div>
+        <input
+          type="text"
+          className="block w-full pl-12 pr-3 py-4 border border-stone-200 rounded-xl leading-5 bg-white placeholder-stone-400 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-medium text-stone-800 transition-colors shadow-sm"
+          placeholder="Buscar empleado por nombre..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-stone-50 border-b border-stone-200 text-stone-600">
@@ -140,19 +172,26 @@ export default function AdminDashboard() {
               <th className="p-4 font-semibold">Nombre</th>
               <th className="p-4 font-semibold">Rol</th>
               <th className="p-4 font-semibold">Contrato</th>
+              <th className="p-4 font-semibold text-center">Condiciones Médicas</th>
               <th className="p-4 font-semibold text-center">Apoyo Visual</th>
               <th className="p-4 font-semibold text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {mockEmpleados.map((emp) => (
+            {mockEmpleados.filter(emp => emp.nombre.toLowerCase().includes(searchQuery.toLowerCase())).map((emp) => (
               <React.Fragment key={emp.id}>
                 <tr className={`border-b border-stone-100 hover:bg-stone-50 transition-colors ${expandedEmp === emp.id ? 'bg-orange-50' : ''}`}>
-                  <td className="p-4 font-medium text-stone-800 text-lg">{emp.nombre}</td>
+                  <td className="p-4 font-medium text-stone-800 text-lg flex items-center gap-3">
+                    <img src={emp.urlAvatar} alt={emp.nombre} className="w-14 h-14 shadow-md rounded-full object-cover border-2 border-stone-200" />
+                    {emp.nombre}
+                  </td>
                   <td className="p-4 text-stone-600"><span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm font-bold">{emp.rol?.nombre || 'Sin Rol'}</span></td>
                   <td className="p-4 text-stone-600">{emp.tipoContrato?.nombre || 'Sin Contrato'}</td>
                   <td className="p-4 text-center">
-                    {emp.apoyo && <span className="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Requiere Tutor</span>}
+                    {emp.condicionesMedicas ? <span className="inline-block px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold max-w-[150px] truncate" title={emp.condicionesMedicas}>{emp.condicionesMedicas}</span> : <span className="text-stone-400 text-sm font-medium">Ninguna</span>}
+                  </td>
+                  <td className="p-4 text-center">
+                    {emp.requiereApoyo && <span className="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Requiere Tutor</span>}
                   </td>
                   <td className="p-4 text-right flex justify-end gap-2">
                     <button onClick={() => setModalEmp({data: emp, isNew: false})} className="p-2 text-stone-400 hover:text-blue-500"><Edit size={20}/></button>
@@ -194,7 +233,6 @@ export default function AdminDashboard() {
           </tbody>
         </table>
       </div>
-      {modalEmp && <EmployeeModal emp={modalEmp.data} onSave={handleSaveEmp} onClose={() => setModalEmp(null)} />}
     </div>
   );
 
@@ -294,144 +332,32 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const renderNomina = () => (
-    <>
-      <div className="flex justify-between items-center mb-8 print:hidden">
-        <div>
-          <h1 className="text-4xl font-bold text-stone-800">Cálculo de Nómina</h1>
-          <p className="text-stone-500 mt-2">Visión semanal de Entradas y Salidas.</p>
-        </div>
-        <div className="flex gap-4 items-end">
-          <div className="flex flex-col">
-            <label className="text-xs font-bold text-stone-500 uppercase mb-1 tracking-wider">Semana</label>
-            <input 
-              type="week" 
-              className="border-2 border-stone-200 focus:border-orange-500 p-3 rounded-lg text-sm font-bold text-stone-800 outline-none w-48"
-              value={semana}
-              onChange={(e) => setSemana(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col">
-             <label className="text-xs font-bold text-stone-500 uppercase mb-1 tracking-wider">Seleccionar Empleado (Para Ticket)</label>
-             <select 
-              className="border-2 border-stone-200 focus:border-orange-500 p-3 rounded-lg text-sm font-bold text-stone-800 outline-none w-64"
-              onChange={(e) => {
-                const emp = mockEmpleados.find(m => m.id === parseInt(e.target.value));
-                if(emp) {
-                  setSelectedReceiptEmp({
-                    nombre: emp.nombre,
-                    fechaInicio: "02/02/2026", fechaFin: "07/02/2026",
-                    horas: "12 hrs", tarifa: emp.tarifa, 
-                    total: (parseFloat(emp.tarifa) * 12).toFixed(2),
-                    fechaEmision: "08/02/2026"
-                  });
-                } else {
-                  setSelectedReceiptEmp(null);
-                }
-              }}
-             >
-              <option value="">- Todos (Ver Tabla) -</option>
-              {(Array.isArray(mockEmpleados) ? mockEmpleados : []).filter(e => e.tipoContrato?.nombre === 'Pagado').map(e => (
-                <option key={e.id} value={e.id}>{e.nombre}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={() => alert("Simulando envío al módulo de Gastos...")} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2">
-            <Send size={20}/> Enviar a Gastos
-          </button>
-          <button 
-            disabled={!selectedReceiptEmp}
-            onClick={() => window.print()} 
-            className={`px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2 ${selectedReceiptEmp ? 'bg-stone-800 hover:bg-stone-900 text-white shadow-xl' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
-          >
-            <Printer size={20}/> Imprimir Recibo de Nómina
-          </button>
-          <button 
-            onClick={handleExportExcel}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2 shadow-xl"
-          >
-            <Download size={20}/> Exportar Sábana (Excel)
-          </button>
-        </div>
-      </div>
-
-      {/* Sábana Semanal (Calendario) */}
-      <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-x-auto print:hidden">
-        <table className="w-full text-center border-collapse min-w-[1200px] text-xs">
-          <thead>
-            {/* Header Fechas */}
-            <tr className="bg-stone-50">
-              <th className="p-2 border border-stone-300 bg-yellow-200 text-left font-black" colSpan={1}>
-                {semana ? `Semana: ${semana}` : 'SEMANA ACTUAL'}
-              </th>
-              {diasFechas.map(num => (
-                <th key={num} colSpan={2} className="p-1 border border-stone-300 font-bold text-stone-600">{num}</th>
-              ))}
-              <th className="border border-stone-300"></th>
-            </tr>
-            {/* Header Dias */}
-            <tr className="bg-stone-50">
-              <th className="border border-stone-300"></th>
-              {dias.map(dia => (
-                <th key={dia} colSpan={2} className="p-1 border border-stone-300 text-stone-600 font-bold uppercase">{dia}</th>
-              ))}
-              <th className="p-2 border border-stone-300 text-stone-800 font-black">TOTAL HORAS</th>
-            </tr>
-            {/* Header Entrada/Salida */}
-            <tr className="bg-stone-50">
-              <th className="p-2 border border-stone-300 text-left font-bold text-stone-600">HORA<br/>EMPLEADOS</th>
-              {dias.map(dia => (
-                <React.Fragment key={`${dia}-es`}>
-                  <th className="p-1 border border-stone-300 text-stone-500">ENTRADA</th>
-                  <th className="p-1 border border-stone-300 text-stone-500">SALIDA</th>
-                </React.Fragment>
-              ))}
-              <th className="border border-stone-300 text-stone-500 font-bold">SEMANAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {asistenciasNomina.map((r, i) => (
-              <tr key={i} className="hover:bg-blue-50/50">
-                <td className="p-2 border border-stone-300 font-bold text-left text-stone-800">{r.emp}</td>
-                {['lu', 'ma', 'mi', 'ju', 'vi', 'sa'].map((d: any) => (
-                  <React.Fragment key={d}>
-                    <td className={`p-1 border border-stone-300 ${(r as any)[d].e ? 'bg-orange-100' : ''}`}>{(r as any)[d].e}</td>
-                    <td className={`p-1 border border-stone-300 ${(r as any)[d].s ? 'bg-orange-100' : ''}`}>{(r as any)[d].s}</td>
-                  </React.Fragment>
-                ))}
-                <td className="p-2 border border-stone-300 font-bold bg-green-100 text-green-800">{r.horas}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Recibo físico oculto (Ticket) */}
-      <div className="hidden print:block">
-        <ReceiptTemplate data={selectedReceiptEmp} />
-      </div>
-    </>
-  );
 
   const renderCandidatos = () => (
     <div className="print:hidden">
-      <div>
-        <h1 className="text-4xl font-bold text-stone-800">Lista de Espera</h1>
-        <p className="text-stone-500 mt-2">Personal interesado en unirse a Chiokore Bazar.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-4xl font-bold text-stone-800">Lista de Espera</h1>
+          <p className="text-stone-500 mt-2">Personal interesado en unirse a Chiokore Bazar.</p>
+        </div>
+        <button onClick={() => setModalCand({data: null, isNew: true})} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2">
+          <UserPlus size={20}/> Nuevo Candidato
+        </button>
       </div>
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[
-          { id: 1, nombre: 'Laura Gómez', tipo: 'Voluntariado', fechaRegistro: 'Hace 2 días', notas: 'Disponibilidad por las mañanas.' },
-          { id: 2, nombre: 'Pedro Pascal', tipo: 'Pagado', fechaRegistro: 'Hace 1 semana', notas: 'Experiencia previa en ventas y caja.' }
-        ].map((candidato) => (
+        {candidatos.map((candidato) => (
           <div key={candidato.id} className="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col items-center text-center hover:shadow-md transition-shadow relative">
             <div className="absolute top-4 right-4 bg-yellow-100 text-yellow-800 text-xs font-black px-3 py-1 rounded-full">EN ESPERA</div>
-            <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4 mt-2">
-              <UserPlus size={32} className="text-orange-500" />
+            <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4 mt-2 overflow-hidden shadow-sm">
+              {candidato.urlAvatar ? (
+                <img src={candidato.urlAvatar} alt={candidato.nombre} className="w-full h-full object-cover" />
+              ) : (
+                <UserPlus size={32} className="text-orange-500" />
+              )}
             </div>
             <h3 className="font-bold text-stone-800 text-lg">{candidato.nombre}</h3>
-            <p className="text-sm font-bold mt-1 text-indigo-600 uppercase">{candidato.tipo}</p>
-            <p className="text-xs text-stone-400 mt-4">Registrado: {candidato.fechaRegistro}</p>
+            <p className="text-sm font-bold mt-1 text-indigo-600 uppercase">{candidato.tipoContrato?.nombre || 'Por Definir'}</p>
+            <p className="text-xs text-stone-400 mt-4">Registrado: {candidato.fechaSolicitud}</p>
             <button onClick={() => setSelectedCandidato(candidato)} className="mt-4 w-full py-2 bg-stone-50 hover:bg-orange-50 text-stone-600 hover:text-orange-600 font-bold border border-stone-200 hover:border-orange-200 rounded transition-colors">
               Ver Detalles
             </button>
@@ -445,20 +371,40 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
             <button onClick={() => setSelectedCandidato(null)} className="absolute top-4 right-4 text-stone-400 hover:text-stone-600"><Trash2 size={24} /></button>
             <div className="p-8 text-center">
-              <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <UserPlus size={40} className="text-orange-500" />
+              <div className="w-24 h-24 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden shadow-md border-4 border-white">
+                {selectedCandidato.urlAvatar ? (
+                  <img src={selectedCandidato.urlAvatar} alt={selectedCandidato.nombre} className="w-full h-full object-cover" />
+                ) : (
+                  <UserPlus size={40} className="text-orange-500" />
+                )}
               </div>
               <h2 className="text-2xl font-black text-stone-800">{selectedCandidato.nombre}</h2>
-              <p className="text-sm font-bold mt-1 text-indigo-600 uppercase">{selectedCandidato.tipo}</p>
+              <p className="text-sm font-bold mt-1 text-indigo-600 uppercase">{selectedCandidato.tipoContrato?.nombre || 'Por Definir'}</p>
               
-              <div className="mt-6 text-left bg-stone-50 p-4 rounded-lg">
-                <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Detalles Adicionales</p>
-                <p className="text-stone-800 text-sm"><strong>Registro:</strong> {selectedCandidato.fechaRegistro}</p>
-                <p className="text-stone-800 text-sm mt-2"><strong>Notas:</strong> {selectedCandidato.notas}</p>
+              <div className="mt-6 text-left bg-stone-50 p-4 rounded-lg overflow-y-auto max-h-[40vh]">
+                <p className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-4">Detalles Adicionales</p>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-4 text-sm text-stone-800">
+                  <p><strong>Registro:</strong><br/>{selectedCandidato.fechaSolicitud}</p>
+                  <p><strong>Tipo de Sangre:</strong><br/>{selectedCandidato.tipoSangre || 'N/A'}</p>
+                  <p><strong>Rol:</strong><br/>{selectedCandidato.rol?.nombre || 'N/A'}</p>
+                  <p><strong>Contrato:</strong><br/>{selectedCandidato.tipoContrato?.nombre || 'N/A'}</p>
+                  <p className="col-span-2"><strong>Condiciones Médicas:</strong><br/>{selectedCandidato.condicionesMedicas || 'Ninguna'}</p>
+                  <p className="col-span-2"><strong>Contacto de Emergencia:</strong><br/>{selectedCandidato.contactoEmergenciaNombre || 'N/A'} {selectedCandidato.contactoEmergenciaTelefono ? `(${selectedCandidato.contactoEmergenciaTelefono})` : ''}</p>
+                  <p className="col-span-2"><strong>Apoyo Visual:</strong><br/>{selectedCandidato.requiereApoyo ? 'Sí, requiere acompañante' : 'No'}</p>
+                  <p className="col-span-2 mt-2 pt-4 border-t border-stone-200"><strong>Notas de Entrevista:</strong><br/>{selectedCandidato.notas || 'Sin notas.'}</p>
+                </div>
               </div>
 
               <div className="mt-8 flex gap-4">
-                <button onClick={() => alert("Simulando promover a empleado...")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-bold">Aceptar y Contratar</button>
+                <button onClick={() => {
+                  const isPagado = selectedCandidato.tipoContrato?.nombre?.toUpperCase() === 'PAGADO' || selectedCandidato.tipoContrato?.id === 1;
+                  if (isPagado) {
+                     setPayoutModalCand(selectedCandidato);
+                     setTempPayout('');
+                  } else {
+                     handleHireCandidato(selectedCandidato, 0);
+                  }
+                }} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-bold shadow-sm">Aceptar y Contratar</button>
                 <button onClick={() => setSelectedCandidato(null)} className="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-800 py-3 rounded-lg font-bold">Cerrar</button>
               </div>
             </div>
@@ -481,9 +427,6 @@ export default function AdminDashboard() {
           </button>
           <button onClick={() => setActiveTab('horarios')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'horarios' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
             <CalendarDays size={24} /> Horarios por Turno
-          </button>
-          <button onClick={() => setActiveTab('nomina')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'nomina' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
-            <FileSpreadsheet size={24} /> Nóminas y Recibos
           </button>
           <button onClick={() => setActiveTab('candidatos')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'candidatos' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
             <UserPlus size={24} /> Lista de Espera
@@ -508,8 +451,40 @@ export default function AdminDashboard() {
           </div>
           {activeTab === 'empleados' && renderEmpleados()}
           {activeTab === 'horarios' && renderHorarios()}
-          {activeTab === 'nomina' && renderNomina()}
           {activeTab === 'candidatos' && renderCandidatos()}
+
+          {modalEmp && (
+            <EmployeeModal 
+              emp={modalEmp.data} 
+              onSave={handleSaveEmp} 
+              onClose={() => setModalEmp(null)} 
+            />
+          )}
+
+          {modalCand && (
+            <CandidatoModal 
+              cand={modalCand.data} 
+              onSave={handleSaveCand} 
+              onClose={() => setModalCand(null)} 
+            />
+          )}
+
+          {payoutModalCand && (
+            <div className="fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl relative text-center">
+                <h3 className="text-xl font-black text-stone-800 mb-2">Asignar Tarifa</h3>
+                <p className="text-sm text-stone-500 mb-6">El candidato tendrá contrato pagado. Ingresa su tarifa por hora.</p>
+                <div className="mb-6 relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-stone-400">$</span>
+                  <input type="number" className="w-full border-2 border-stone-200 p-3 pl-8 rounded-lg font-bold text-stone-800 focus:border-orange-500 focus:outline-none transition-colors" placeholder="0.00" value={tempPayout} onChange={e => setTempPayout(e.target.value)} />
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setPayoutModalCand(null)} className="flex-1 py-2 font-bold text-stone-500 hover:bg-stone-100 rounded-lg">Cancelar</button>
+                  <button onClick={() => handleHireCandidato(payoutModalCand, Number(tempPayout))} className="flex-1 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Confirmar</button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
     </div>
   );

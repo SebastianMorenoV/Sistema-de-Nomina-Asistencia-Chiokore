@@ -20,4 +20,28 @@ public class Candidato {
     private String telefonoContacto;
     @NotNull
     private LocalDate fechaSolicitud;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String urlAvatar;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "rol_id")
+    private Rol rol;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "tipo_contrato_id")
+    private TipoContrato tipoContrato;
+
+    private String tipoSangre;
+    
+    @Column(length = 1000)
+    private String condicionesMedicas;
+    
+    private String contactoEmergenciaNombre;
+    private String contactoEmergenciaTelefono;
+    private Boolean requiereApoyo;
+    
+    @Column(length = 2000)
+    private String notas;
 }
