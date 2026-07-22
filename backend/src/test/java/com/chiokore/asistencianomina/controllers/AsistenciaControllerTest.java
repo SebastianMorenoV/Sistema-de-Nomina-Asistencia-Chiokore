@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.chiokore.asistencianomina.services.BiometricService;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -27,9 +28,12 @@ class AsistenciaControllerTest {
     @Mock
     private AsistenciaService service;
 
+    @Mock
+    private BiometricService biometricService;
+
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new AsistenciaController(service)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new AsistenciaController(service, biometricService)).build();
     }
 
     @Test

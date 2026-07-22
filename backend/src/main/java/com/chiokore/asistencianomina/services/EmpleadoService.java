@@ -19,9 +19,26 @@ public class EmpleadoService {
     private final EmpleadoRepository repository;
     private final RolRepository rolRepository;
     private final TipoContratoRepository tipoContratoRepository;
+    private final com.chiokore.asistencianomina.repositories.AsistenciaRepository asistenciaRepository;
     
     public List<Empleado> obtenerActivos() {
         return repository.findByActivoTrue();
+    }
+
+    public List<com.chiokore.asistencianomina.dto.PosEmpleadoDTO> getPosStatus() {
+        java.time.LocalDate hoy = java.time.LocalDate.now();
+        List<Empleado> todos = repository.findAll();
+        return todos.stream().map(e -> {
+            boolean marco = !asistenciaRepository.findByEmpleadoIdAndFecha(e.getId(), hoy).isEmpty();
+            
+            return new com.chiokore.asistencianomina.dto.PosEmpleadoDTO(
+                    e.getId(),
+                    e.getNombre(),
+                    e.getRol() != null ? e.getRol().getNombre() : "Sin Rol",
+                    e.getActivo(),
+                    marco
+            );
+        }).toList();
     }
 
     public Empleado guardar(Empleado e) {
@@ -72,5 +89,14 @@ public class EmpleadoService {
             e.setTipoContrato(tipoContratoRepository.findById(dto.getTipoContratoId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tipo de contrato no encontrado")));
         }
+    }
+
+    public Empleado enrollFingerprint(Long id, String base64Image) {
+        Empleado e = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empleado no encontrado"));
+        
+        String serializedTemplate = BiometricService.createTemplateFromBase64Image(base64Image);
+        e.setHuellaDactilar(serializedTemplate);
+        return repository.save(e);
     }
 }

@@ -5,7 +5,9 @@ import EmpleadoCard from '../components/EmpleadoCard';
 import ActionModal from '../components/ActionModal';
 import Screensaver from '../components/Screensaver';
 import SuccessScreen from '../components/SuccessScreen';
-import { getApiErrorMessage, getEmpleados, kioskLogin } from '../services/api';
+import { getApiErrorMessage, getEmpleados, kioskLogin, kioskFingerprintLogin } from '../services/api';
+import { useFingerprint } from '../hooks/useFingerprint';
+import { Fingerprint } from 'lucide-react';
 
 export default function Checador() {
   type Employee = {
@@ -25,6 +27,39 @@ export default function Checador() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isIdle, setIsIdle] = useState(false);
   const idleTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { isReady: fpReady, error: fpError, captureFingerprint } = useFingerprint();
+
+  const listenForFingerprint = useCallback(async (simulate = false) => {
+    if (!simulate && (!fpReady || isRegistering || showSuccess || selectedEmpleado)) return;
+    
+    try {
+      const base64Image = simulate ? "SIMULATED_FINGERPRINT_DATA" : await captureFingerprint();
+      setIsRegistering(true);
+      
+      const response = await kioskFingerprintLogin(base64Image);
+      const { movimiento, empleadoId, rol } = response.data;
+      
+      setRegistrosHoy((prev) => ({ ...prev, [empleadoId]: movimiento }));
+      console.info('JWT emitido y enviado al sistema consumidor', { empleadoId, movimiento, rol });
+      setShowSuccess(`${movimiento} registrada con éxito`);
+      
+      // Keep listening after a delay to avoid double scans
+      setTimeout(() => listenForFingerprint(), 3000);
+    } catch (err: any) {
+      if (err?.message !== "Lector no está listo" && err?.message !== "Reader is not ready") {
+         console.error("Error al registrar con huella:", err);
+         alert(getApiErrorMessage(err, 'Huella no reconocida o error al registrar'));
+      }
+      setTimeout(() => listenForFingerprint(), 2000);
+    } finally {
+      setIsRegistering(false);
+    }
+  }, [fpReady, isRegistering, showSuccess, selectedEmpleado, captureFingerprint]);
+
+  useEffect(() => {
+    listenForFingerprint();
+  }, [listenForFingerprint]);
 
   const resetIdleTimer = useCallback(() => {
     setIsIdle(false);
@@ -62,12 +97,12 @@ export default function Checador() {
     };
   }, [resetIdleTimer]);
 
-  const handleAction = async (tipo: 'ENTRADA' | 'SALIDA') => {
+  const handleAction = async () => {
     if (!selectedEmpleado) return;
 
     setIsRegistering(true);
     try {
-      const response = await kioskLogin(selectedEmpleado.id, tipo);
+      const response = await kioskLogin(selectedEmpleado.id, null);
       setRegistrosHoy((prev) => ({ ...prev, [selectedEmpleado.id]: response.data.movimiento }));
       console.info('JWT emitido y enviado al sistema consumidor', {
         empleadoId: response.data.empleadoId,
@@ -116,9 +151,13 @@ export default function Checador() {
         </Link>
       </div>
 
-      <header className="mb-16 text-center mt-8">
+      <header className="mb-16 text-center mt-8 relative group">
         <h1 className="text-6xl font-black text-stone-800 tracking-tight drop-shadow-sm">Chiokore <span className="text-orange-500">Bazar</span></h1>
-        <p className="text-3xl text-stone-500 mt-4 font-medium">Toque su fotografía para registrarse</p>
+        <p className="text-3xl text-stone-500 mt-4 font-medium flex items-center justify-center gap-3">
+          Toque su fotografía o coloque su dedo en el lector
+          {fpReady ? <Fingerprint className="text-emerald-500 animate-pulse" size={32} /> : <Fingerprint className="text-stone-300" size={32} />}
+        </p>
+        <button onClick={() => listenForFingerprint(true)} className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-bold text-stone-300 opacity-0 group-hover:opacity-100 hover:text-purple-500 transition-opacity">Simular Huella</button>
       </header>
 
       <main className={`max-w-[1400px] mx-auto grid gap-10 ${isCompanionMode ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>

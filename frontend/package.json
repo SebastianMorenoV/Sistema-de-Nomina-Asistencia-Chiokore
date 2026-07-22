@@ -10,6 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@digitalpersona/core": "^0.2.6",
+    "@digitalpersona/devices": "^0.2.6",
+    "@digitalpersona/fingerprint": "^1.0.0",
+    "@digitalpersona/websdk": "^1.1.0",
     "@tailwindcss/postcss": "^4.3.0",
     "axios": "^1.17.0",
     "lucide-react": "^1.17.0",

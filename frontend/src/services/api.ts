@@ -79,6 +79,9 @@ export async function saveEmpleado(data: EmpleadoFormPayload) {
   return api.post('/empleados', data);
 }
 
+export const enrollFingerprint = (empleadoId: number, imagenB64: string) => api.post(`/empleados/${empleadoId}/huella`, { imagenB64 });
+export const kioskFingerprintLogin = (imagenB64: string) => api.post(`/asistencias/fingerprint`, { imagenB64 });
+
 export async function deleteEmpleado(id: number) {
   return api.delete(`/empleados/${id}`);
 }
@@ -113,11 +116,32 @@ export async function registrarAsistencia(empleadoId: number) {
   return api.post(`/asistencias/registrar/${empleadoId}`);
 }
 
+export async function getAllAsistencias(startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return api.get<any[]>(`/asistencias${queryString}`);
+}
+
+export async function getAsistenciaHoy(empleadoId: number) {
+  try {
+    const res = await api.get(`/asistencias/hoy/${empleadoId}`);
+    return res.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function loginAdmin(nombre: string, contrasena: string) {
   return api.post<AuthResponse>('/auth/login', { nombre, contrasena });
 }
 
-export async function kioskLogin(empleadoId: number, movimiento?: 'ENTRADA' | 'SALIDA') {
+export async function kioskLogin(empleadoId: number, movimiento?: 'ENTRADA' | 'SALIDA' | null) {
   return api.post<KioskResponse>('/auth/kiosk-login', { empleadoId, movimiento });
 }
 

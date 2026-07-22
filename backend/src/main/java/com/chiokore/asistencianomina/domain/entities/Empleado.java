@@ -39,6 +39,11 @@ public class Empleado implements UserDetails {
     private Double tarifaHora;
     private Boolean requiereApoyo;
     
+    // Huella Dactilar
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String huellaDactilar;
+
     // Soft delete
     private Boolean activo = true;
     

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Trash2, Edit, Clock, ShieldCheck, Search } from 'lucide-react';
+import { Users, CalendarDays, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Trash2, Edit, Clock, ShieldCheck, Search, Fingerprint } from 'lucide-react';
 import EmployeeModal from '../components/EmployeeModal';
 import CandidatoModal from '../components/CandidatoModal';
 import {
@@ -12,7 +12,10 @@ import {
   getCandidatos,
   saveCandidato,
   deleteCandidato,
+  enrollFingerprint,
+  getAllAsistencias
 } from '../services/api';
+import { useFingerprint } from '../hooks/useFingerprint';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('empleados');
@@ -20,10 +23,15 @@ export default function AdminDashboard() {
   const [selectedCandidato, setSelectedCandidato] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [candidatos, setCandidatos] = useState<any[]>([]);
+  const { isReady: fpReady, error: fpError, captureFingerprint } = useFingerprint();
+  const [isScanning, setIsScanning] = useState(false);
+  const [asistStartDate, setAsistStartDate] = useState('');
+  const [asistEndDate, setAsistEndDate] = useState('');
   
   // CRUD State
   const [mockEmpleados, setMockEmpleados] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
+  const [asistencias, setAsistencias] = useState<any[]>([]);
   const [modalEmp, setModalEmp] = useState<{data: any, isNew: boolean} | null>(null);
   const [modalCand, setModalCand] = useState<{data: any, isNew: boolean} | null>(null);
   const [payoutModalCand, setPayoutModalCand] = useState<any>(null);
@@ -54,13 +62,30 @@ export default function AdminDashboard() {
 
       const resHor = await getHorarios();
       setHorarios(Array.isArray(resHor.data) ? resHor.data : []);
+
+      await fetchAsistencias();
     } catch (err) {
       console.error("Error fetching data", err);
       setMockEmpleados([]);
       setCandidatos([]);
       setHorarios([]);
+      setAsistencias([]);
     }
   };
+
+  const fetchAsistencias = async () => {
+    try {
+      const resAsist = await getAllAsistencias(asistStartDate, asistEndDate);
+      setAsistencias(Array.isArray(resAsist.data) ? resAsist.data : []);
+    } catch (err) {
+      console.error("Error fetching asistencias", err);
+      setAsistencias([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchAsistencias();
+  }, [asistStartDate, asistEndDate]);
 
   const handleSaveCand = async (data: any) => {
     try {
@@ -86,6 +111,38 @@ export default function AdminDashboard() {
       } catch(err) {
         alert("Error al eliminar");
       }
+    }
+  };
+
+  const handleEnrollFingerprint = async (empId: number, simulate = false) => {
+    if (simulate) {
+      if (!confirm('¿Usar lector simulado para enrolamiento de prueba?')) return;
+      try {
+        await enrollFingerprint(empId, "SIMULATED_FINGERPRINT_DATA");
+        alert("¡Huella simulada registrada con éxito!");
+        fetchData();
+      } catch(e) {
+        alert("Error en simulación");
+      }
+      return;
+    }
+
+    if (!fpReady) {
+      alert(fpError || "El lector de huellas no está listo. Asegúrate de tener el cliente instalado.");
+      return;
+    }
+    
+    setIsScanning(true);
+    try {
+      const base64Image = await captureFingerprint();
+      await enrollFingerprint(empId, base64Image);
+      alert("¡Huella registrada con éxito!");
+      fetchData();
+    } catch (error: any) {
+      console.error("Error al registrar huella:", error);
+      alert("Error al capturar la huella: " + error.message);
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -194,6 +251,8 @@ export default function AdminDashboard() {
                     {emp.requiereApoyo && <span className="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Requiere Tutor</span>}
                   </td>
                   <td className="p-4 text-right flex justify-end gap-2">
+                    <button onClick={() => handleEnrollFingerprint(emp.id, true)} title="Simular Registro (Dev)" className="p-2 text-stone-300 hover:text-purple-500"><Fingerprint size={20}/></button>
+                    <button onClick={() => handleEnrollFingerprint(emp.id)} title="Registrar Huella" className={`p-2 ${emp.huellaDactilar ? 'text-emerald-500 hover:text-emerald-600' : 'text-stone-400 hover:text-orange-500'}`}><Fingerprint size={20}/></button>
                     <button onClick={() => setModalEmp({data: emp, isNew: false})} className="p-2 text-stone-400 hover:text-blue-500"><Edit size={20}/></button>
                     <button onClick={() => handleDelete(emp.id)} className="p-2 text-stone-400 hover:text-red-500"><Trash2 size={20}/></button>
                     <button 
@@ -414,6 +473,112 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const renderAsistencias = () => {
+    // Calcular horas totales por empleado para Empleado del Mes
+    const horasPorEmpleado: { [key: number]: { nombre: string; urlAvatar?: string; horas: number } } = {};
+    
+    asistencias.forEach(a => {
+      const empId = a.empleado.id;
+      if (!horasPorEmpleado[empId]) {
+        horasPorEmpleado[empId] = {
+          nombre: a.empleado.nombre,
+          urlAvatar: a.empleado.urlAvatar,
+          horas: 0
+        };
+      }
+      if (a.horasCalculadas) {
+        horasPorEmpleado[empId].horas += a.horasCalculadas;
+      }
+    });
+
+    const empleadosOrdenados = Object.values(horasPorEmpleado).sort((a, b) => b.horas - a.horas);
+    const empleadoDelMes = empleadosOrdenados.length > 0 && empleadosOrdenados[0].horas > 0 ? empleadosOrdenados[0] : null;
+
+    return (
+      <div className="print:hidden">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-stone-800">Asistencias y Rendimientos</h1>
+            <p className="text-stone-500 mt-2">Seguimiento de horas trabajadas y desempeño del personal.</p>
+          </div>
+          <div className="flex gap-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Fecha Inicial</label>
+              <input type="date" value={asistStartDate} onChange={e => setAsistStartDate(e.target.value)} className="border border-stone-200 p-2 rounded-lg text-stone-800 font-medium outline-none focus:border-orange-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Fecha Final</label>
+              <input type="date" value={asistEndDate} onChange={e => setAsistEndDate(e.target.value)} className="border border-stone-200 p-2 rounded-lg text-stone-800 font-medium outline-none focus:border-orange-500" />
+            </div>
+            <div className="flex items-end">
+              <button onClick={() => { setAsistStartDate(''); setAsistEndDate(''); }} className="p-2 h-[42px] bg-stone-100 text-stone-500 hover:bg-stone-200 hover:text-stone-800 font-bold rounded-lg transition-colors">Limpiar Filtros</button>
+            </div>
+          </div>
+        </div>
+
+        {empleadoDelMes && (
+          <div className="mb-10 bg-gradient-to-r from-amber-400 to-orange-500 rounded-3xl p-8 text-white shadow-xl flex items-center gap-8 relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl"></div>
+            
+            <div className="w-32 h-32 rounded-full border-4 border-white/30 shadow-2xl overflow-hidden bg-white/20 flex-shrink-0 flex items-center justify-center">
+              {empleadoDelMes.urlAvatar ? (
+                <img src={empleadoDelMes.urlAvatar} alt={empleadoDelMes.nombre} className="w-full h-full object-cover" />
+              ) : (
+                <Users size={48} className="text-white/80" />
+              )}
+            </div>
+            
+            <div className="z-10 relative">
+              <div className="flex items-center gap-2 text-amber-100 font-bold tracking-widest text-sm mb-2">
+                <ShieldCheck size={18} /> EMPLEADO DEL MES
+              </div>
+              <h2 className="text-5xl font-black mb-2 drop-shadow-md">{empleadoDelMes.nombre}</h2>
+              <p className="text-2xl font-medium text-orange-50">Líder en rendimiento con <strong className="font-black text-white">{empleadoDelMes.horas.toFixed(2)} horas</strong> registradas.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-stone-50 border-b border-stone-200 text-stone-600">
+              <tr>
+                <th className="p-4 font-semibold">Fecha</th>
+                <th className="p-4 font-semibold">Empleado</th>
+                <th className="p-4 font-semibold text-center">Entrada</th>
+                <th className="p-4 font-semibold text-center">Salida</th>
+                <th className="p-4 font-semibold text-right">Horas Calculadas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {asistencias.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-stone-500 font-medium">No hay registros de asistencias.</td>
+                </tr>
+              ) : (
+                asistencias.map(a => (
+                  <tr key={a.id} className="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+                    <td className="p-4 font-bold text-stone-700">{a.fecha}</td>
+                    <td className="p-4 font-medium text-stone-800 flex items-center gap-3">
+                      {a.empleado.urlAvatar ? (
+                        <img src={a.empleado.urlAvatar} alt={a.empleado.nombre} className="w-10 h-10 rounded-full object-cover border border-stone-200" />
+                      ) : (
+                        <div className="w-10 h-10 bg-stone-200 rounded-full flex items-center justify-center"><Users size={16} className="text-stone-500"/></div>
+                      )}
+                      {a.empleado.nombre}
+                    </td>
+                    <td className="p-4 text-center text-emerald-600 font-bold">{a.entrada ? new Date(a.entrada).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
+                    <td className="p-4 text-center text-indigo-600 font-bold">{a.salida ? new Date(a.salida).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
+                    <td className="p-4 text-right font-black text-stone-800">{a.horasCalculadas ? `${a.horasCalculadas.toFixed(2)}h` : '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-stone-100 font-sans print:bg-white print:h-auto">
       <div className="w-72 bg-stone-900 text-white flex flex-col print:hidden">
@@ -430,6 +595,9 @@ export default function AdminDashboard() {
           </button>
           <button onClick={() => setActiveTab('candidatos')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'candidatos' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
             <UserPlus size={24} /> Lista de Espera
+          </button>
+          <button onClick={() => setActiveTab('asistencias')} className={`flex items-center gap-4 w-full p-5 transition-colors ${activeTab === 'asistencias' ? 'bg-stone-800 border-l-4 border-orange-500 text-white' : 'border-l-4 border-transparent text-stone-400 hover:bg-stone-800/50 hover:text-stone-200'}`}>
+            <Clock size={24} /> Asistencias y R.
           </button>
         </nav>
         <div className="p-6 border-t border-stone-800">
@@ -452,6 +620,19 @@ export default function AdminDashboard() {
           {activeTab === 'empleados' && renderEmpleados()}
           {activeTab === 'horarios' && renderHorarios()}
           {activeTab === 'candidatos' && renderCandidatos()}
+          {activeTab === 'asistencias' && renderAsistencias()}
+
+          {isScanning && (
+            <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center backdrop-blur-sm">
+              <div className="bg-white p-10 rounded-3xl text-center shadow-2xl max-w-sm w-full mx-4 border border-orange-100 animate-in fade-in zoom-in duration-300">
+                <div className="bg-orange-50 w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-6 shadow-inner">
+                  <Fingerprint className="w-12 h-12 text-orange-500 animate-pulse" />
+                </div>
+                <h3 className="text-2xl font-black text-stone-800 mb-2">Escáner Activo</h3>
+                <p className="text-stone-600 font-medium">Por favor, coloca tu dedo en el lector DigitalPersona...</p>
+              </div>
+            </div>
+          )}
 
           {modalEmp && (
             <EmployeeModal 

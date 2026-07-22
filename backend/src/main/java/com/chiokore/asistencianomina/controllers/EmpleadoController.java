@@ -22,6 +22,11 @@ public class EmpleadoController {
         return PagedResponse.from(service.obtenerActivosPaginados(pageable));
     }
 
+    @GetMapping("/pos-status")
+    public java.util.List<com.chiokore.asistencianomina.dto.PosEmpleadoDTO> getPosStatus() {
+        return service.getPosStatus();
+    }
+
     @PostMapping
     public Empleado create(@Valid @RequestBody EmpleadoRequest request) {
         return service.crear(request);
@@ -35,5 +40,14 @@ public class EmpleadoController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.softDelete(id);
+    }
+
+    @PostMapping("/{id}/huella")
+    public Empleado enrollFingerprint(@PathVariable Long id, @RequestBody java.util.Map<String, String> payload) {
+        String base64Image = payload.get("imagenB64");
+        if (base64Image == null || base64Image.isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Imagen no proporcionada");
+        }
+        return service.enrollFingerprint(id, base64Image);
     }
 }

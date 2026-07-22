@@ -25,6 +25,27 @@ public class AsistenciaService {
         return registrarMovimiento(empleadoId, null);
     }
 
+    public Asistencia getAsistenciaHoy(Long empleadoId) {
+        LocalDate hoy = LocalDate.now();
+        List<Asistencia> asistenciasHoy = repository.findByEmpleadoIdAndFecha(empleadoId, hoy);
+        return asistenciasHoy.isEmpty() ? null : asistenciasHoy.get(0);
+    }
+
+    public List<Asistencia> getAllAsistencias(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null) {
+            return repository.findByFechaBetweenOrderByFechaDesc(startDate, endDate);
+        } else if (startDate != null) {
+            return repository.findByFechaOrderByFechaDesc(startDate);
+        } else if (endDate != null) {
+            return repository.findByFechaOrderByFechaDesc(endDate);
+        }
+        return repository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "fecha"));
+    }
+
+    public List<Asistencia> getAsistenciasByEmpleado(Long empleadoId) {
+        return repository.findByEmpleadoId(empleadoId);
+    }
+
     @Transactional
     public Asistencia registrarMovimiento(Long empleadoId, String movimientoSolicitado) {
         LocalDate hoy = LocalDate.now();

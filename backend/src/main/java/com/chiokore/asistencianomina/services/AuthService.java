@@ -65,13 +65,8 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El empleado está inactivo.");
         }
 
-        if (empleado.esAdministrador()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El acceso por kiosco no está permitido para administradores.");
-        }
-
-        if (!empleado.esTrabajador()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El acceso por kiosco solo está habilitado para trabajadores.");
-        }
+        // Permitimos el acceso por kiosco a todos los empleados activos (incluyendo administradores)
+        // para que puedan checar entrada/salida desde la pantalla o con huella.
 
         Asistencia asistencia = asistenciaService.registrarMovimiento(empleado.getId(), request.getMovimiento());
         boolean esEntrada = asistencia.getSalida() == null;
