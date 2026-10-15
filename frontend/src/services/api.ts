@@ -16,6 +16,7 @@ type Empleado = {
   contactoEmergenciaNombre?: string;
   contactoEmergenciaTelefono?: string;
   urlAvatar?: string;
+  tieneHuella?: boolean;
 };
 
 type AuthResponse = {
@@ -79,8 +80,11 @@ export async function saveEmpleado(data: EmpleadoFormPayload) {
   return api.post('/empleados', data);
 }
 
-export const enrollFingerprint = (empleadoId: number, imagenB64: string) => api.post(`/empleados/${empleadoId}/huella`, { imagenB64 });
-export const kioskFingerprintLogin = (imagenB64: string) => api.post(`/asistencias/fingerprint`, { imagenB64 });
+/** Valor que el backend acepta como huella simulada cuando app.huella.simulacion=true. */
+export const SIMULATED_FINGERPRINT = 'SIMULATED_FINGERPRINT_DATA';
+
+export const enrollFingerprint = (empleadoId: number, imagenB64: string) => api.post<Empleado>(`/empleados/${empleadoId}/huella`, { imagenB64 });
+export const kioskFingerprintLogin = (imagenB64: string) => api.post<KioskResponse>(`/asistencias/fingerprint`, { imagenB64 });
 
 export async function deleteEmpleado(id: number) {
   return api.delete(`/empleados/${id}`);

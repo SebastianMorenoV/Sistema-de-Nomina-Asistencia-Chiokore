@@ -13,9 +13,11 @@ import {
   saveCandidato,
   deleteCandidato,
   enrollFingerprint,
-  getAllAsistencias
+  getAllAsistencias,
+  getApiErrorMessage,
+  SIMULATED_FINGERPRINT,
 } from '../services/api';
-import { useFingerprint } from '../hooks/useFingerprint';
+import { useFingerprint, CAPTURE_CANCELLED } from '../hooks/useFingerprint';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('empleados');
@@ -23,7 +25,7 @@ export default function AdminDashboard() {
   const [selectedCandidato, setSelectedCandidato] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [candidatos, setCandidatos] = useState<any[]>([]);
-  const { isReady: fpReady, error: fpError, captureFingerprint } = useFingerprint();
+  const { isReady: fpReady, error: fpError, captureFingerprint, cancelCapture } = useFingerprint();
   const [isScanning, setIsScanning] = useState(false);
   const [asistStartDate, setAsistStartDate] = useState('');
   const [asistEndDate, setAsistEndDate] = useState('');
@@ -38,7 +40,6 @@ export default function AdminDashboard() {
   const [tempPayout, setTempPayout] = useState<string>('');
 
   const dias = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
-  const diasFechas = ['2', '3', '4', '5', '6', '7'];
   
   const turnos = [
     { id: 't1', nombre: '9:00 A 1:00 PM', tipo: 'Pagado', cupos: 3 },
@@ -118,11 +119,11 @@ export default function AdminDashboard() {
     if (simulate) {
       if (!confirm('¿Usar lector simulado para enrolamiento de prueba?')) return;
       try {
-        await enrollFingerprint(empId, "SIMULATED_FINGERPRINT_DATA");
+        await enrollFingerprint(empId, SIMULATED_FINGERPRINT);
         alert("¡Huella simulada registrada con éxito!");
         fetchData();
-      } catch(e) {
-        alert("Error en simulación");
+      } catch (e) {
+        alert(getApiErrorMessage(e, "Error en simulación"));
       }
       return;
     }
@@ -131,16 +132,17 @@ export default function AdminDashboard() {
       alert(fpError || "El lector de huellas no está listo. Asegúrate de tener el cliente instalado.");
       return;
     }
-    
+
     setIsScanning(true);
     try {
       const base64Image = await captureFingerprint();
       await enrollFingerprint(empId, base64Image);
       alert("¡Huella registrada con éxito!");
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === CAPTURE_CANCELLED) return;
       console.error("Error al registrar huella:", error);
-      alert("Error al capturar la huella: " + error.message);
+      alert(getApiErrorMessage(error, "Error al capturar la huella"));
     } finally {
       setIsScanning(false);
     }
@@ -251,8 +253,8 @@ export default function AdminDashboard() {
                     {emp.requiereApoyo && <span className="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">Requiere Tutor</span>}
                   </td>
                   <td className="p-4 text-right flex justify-end gap-2">
-                    <button onClick={() => handleEnrollFingerprint(emp.id, true)} title="Simular Registro (Dev)" className="p-2 text-stone-300 hover:text-purple-500"><Fingerprint size={20}/></button>
-                    <button onClick={() => handleEnrollFingerprint(emp.id)} title="Registrar Huella" className={`p-2 ${emp.huellaDactilar ? 'text-emerald-500 hover:text-emerald-600' : 'text-stone-400 hover:text-orange-500'}`}><Fingerprint size={20}/></button>
+                    {import.meta.env.DEV && <button onClick={() => handleEnrollFingerprint(emp.id, true)} title="Simular Registro (Dev)" className="p-2 text-stone-300 hover:text-purple-500"><Fingerprint size={20}/></button>}
+                    <button onClick={() => handleEnrollFingerprint(emp.id)} title={emp.tieneHuella ? 'Huella registrada (volver a registrar)' : 'Registrar Huella'} className={`p-2 ${emp.tieneHuella ? 'text-emerald-500 hover:text-emerald-600' : 'text-stone-400 hover:text-orange-500'}`}><Fingerprint size={20}/></button>
                     <button onClick={() => setModalEmp({data: emp, isNew: false})} className="p-2 text-stone-400 hover:text-blue-500"><Edit size={20}/></button>
                     <button onClick={() => handleDelete(emp.id)} className="p-2 text-stone-400 hover:text-red-500"><Trash2 size={20}/></button>
                     <button 
@@ -464,6 +466,7 @@ export default function AdminDashboard() {
                      handleHireCandidato(selectedCandidato, 0);
                   }
                 }} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-bold shadow-sm">Aceptar y Contratar</button>
+                <button onClick={() => handleDeleteCand(selectedCandidato.id)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 py-3 rounded-lg font-bold">Rechazar</button>
                 <button onClick={() => setSelectedCandidato(null)} className="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-800 py-3 rounded-lg font-bold">Cerrar</button>
               </div>
             </div>
@@ -630,6 +633,7 @@ export default function AdminDashboard() {
                 </div>
                 <h3 className="text-2xl font-black text-stone-800 mb-2">Escáner Activo</h3>
                 <p className="text-stone-600 font-medium">Por favor, coloca tu dedo en el lector DigitalPersona...</p>
+                <button onClick={cancelCapture} className="mt-6 px-6 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-full font-bold">Cancelar</button>
               </div>
             </div>
           )}

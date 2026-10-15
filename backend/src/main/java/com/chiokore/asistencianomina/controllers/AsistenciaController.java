@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AsistenciaController {
     private final AsistenciaService service;
-    private final com.chiokore.asistencianomina.services.BiometricService biometricService;
+    private final com.chiokore.asistencianomina.services.AuthService authService;
 
     @PostMapping("/registrar/{empleadoId}")
     public Asistencia registrar(@PathVariable Long empleadoId) {
@@ -39,14 +39,11 @@ public class AsistenciaController {
     }
 
     @PostMapping("/fingerprint")
-    public Asistencia registrarByFingerprint(@RequestBody java.util.Map<String, String> payload) {
+    public com.chiokore.asistencianomina.dto.KioscoLoginResponse registrarByFingerprint(@RequestBody java.util.Map<String, String> payload) {
         String base64Image = payload.get("imagenB64");
         if (base64Image == null || base64Image.isEmpty()) {
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Imagen no proporcionada");
         }
-        com.chiokore.asistencianomina.domain.entities.Empleado empleado = biometricService.identifyEmployee(base64Image)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Huella no reconocida o empleado inactivo"));
-        
-        return service.registrarToggle(empleado.getId());
+        return authService.kioskFingerprintLogin(base64Image);
     }
 }

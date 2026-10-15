@@ -20,6 +20,7 @@ public class EmpleadoService {
     private final RolRepository rolRepository;
     private final TipoContratoRepository tipoContratoRepository;
     private final com.chiokore.asistencianomina.repositories.AsistenciaRepository asistenciaRepository;
+    private final BiometricService biometricService;
     
     public List<Empleado> obtenerActivos() {
         return repository.findByActivoTrue();
@@ -95,8 +96,7 @@ public class EmpleadoService {
         Empleado e = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empleado no encontrado"));
         
-        String serializedTemplate = BiometricService.createTemplateFromBase64Image(base64Image);
-        e.setHuellaDactilar(serializedTemplate);
+        e.setHuellaDactilar(biometricService.createTemplate(base64Image));
         return repository.save(e);
     }
 }

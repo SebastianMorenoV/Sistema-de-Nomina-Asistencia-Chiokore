@@ -9,6 +9,8 @@ import com.chiokore.asistencianomina.dto.KioscoLoginRequest;
 import com.chiokore.asistencianomina.dto.KioscoLoginResponse;
 import com.chiokore.asistencianomina.repositories.EmpleadoRepository;
 import jakarta.transaction.Transactional;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,10 +23,13 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final Duration ESPERA_MINIMA_HUELLA = Duration.ofMinutes(1);
+
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final EmpleadoRepository empleadoRepository;
     private final AsistenciaService asistenciaService;
+    private final BiometricService biometricService;
 
     public AuthResponse login(AuthRequest request) {
         Authentication authentication = authenticationManager.authenticate(
@@ -67,8 +72,28 @@ public class AuthService {
 
         // Permitimos el acceso por kiosco a todos los empleados activos (incluyendo administradores)
         // para que puedan checar entrada/salida desde la pantalla o con huella.
+        return registrarEnKiosco(empleado, request.getMovimiento());
+    }
 
-        Asistencia asistencia = asistenciaService.registrarMovimiento(empleado.getId(), request.getMovimiento());
+    /**
+     * Identifica al empleado por su huella y alterna su entrada/salida del día.
+     */
+    @Transactional
+    public KioscoLoginResponse kioskFingerprintLogin(String imagenB64) {
+        Empleado empleado = biometricService.identifyEmployee(imagenB64)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Huella no reconocida o empleado inactivo."));
+
+        // Evita que un segundo escaneo accidental cierre la jornada justo después de abrirla.
+        Asistencia hoy = asistenciaService.getAsistenciaHoy(empleado.getId());
+        if (hoy != null && hoy.getSalida() == null && hoy.getEntrada() != null
+                && hoy.getEntrada().isAfter(LocalDateTime.now().minus(ESPERA_MINIMA_HUELLA))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tu entrada ya fue registrada hace un momento.");
+        }
+        return registrarEnKiosco(empleado, null);
+    }
+
+    private KioscoLoginResponse registrarEnKiosco(Empleado empleado, String movimiento) {
+        Asistencia asistencia = asistenciaService.registrarMovimiento(empleado.getId(), movimiento);
         boolean esEntrada = asistencia.getSalida() == null;
 
         String token = jwtService.generateAccessToken(

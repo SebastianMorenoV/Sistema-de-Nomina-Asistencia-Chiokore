@@ -51,7 +51,7 @@ class AsistenciaServiceTest {
         saved.setId(100L);
         saved.setEmpleado(empleado);
         saved.setEntrada(LocalDateTime.now());
-        when(repository.save(any(Asistencia.class))).thenReturn(saved);
+        when(repository.saveAndFlush(any(Asistencia.class))).thenReturn(saved);
 
         Asistencia resultado = service.registrarToggle(1L);
 
@@ -60,7 +60,7 @@ class AsistenciaServiceTest {
         assertEquals(empleado, resultado.getEmpleado());
         assertNotNull(resultado.getEntrada());
         assertNull(resultado.getSalida());
-        verify(repository, times(1)).save(any(Asistencia.class));
+        verify(repository, times(1)).saveAndFlush(any(Asistencia.class));
     }
 
     @Test
@@ -73,6 +73,7 @@ class AsistenciaServiceTest {
         existente.setSalida(null);
         existente.setFecha(LocalDate.of(2026, 6, 6));
 
+        when(empleadoRepository.findById(1L)).thenReturn(Optional.of(empleado));
         when(repository.findByEmpleadoIdAndFecha(eq(1L), any(LocalDate.class)))
                 .thenReturn(List.of(existente));
 
@@ -100,6 +101,7 @@ class AsistenciaServiceTest {
         existente.setSalida(LocalDateTime.of(2026, 6, 6, 17, 0));
         existente.setFecha(LocalDate.of(2026, 6, 6));
 
+        when(empleadoRepository.findById(1L)).thenReturn(Optional.of(empleado));
         when(repository.findByEmpleadoIdAndFecha(eq(1L), any(LocalDate.class)))
                 .thenReturn(List.of(existente));
 
@@ -111,12 +113,12 @@ class AsistenciaServiceTest {
     }
 
     @Test
-    void registrarToggle_cuandoEmpleadoNoExiste_debeLanzarNoSuchElementException() {
-        when(repository.findByEmpleadoIdAndFecha(eq(99L), any(LocalDate.class))).thenReturn(List.of());
+    void registrarToggle_cuandoEmpleadoNoExiste_debeLanzar404() {
         when(empleadoRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(java.util.NoSuchElementException.class,
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.registrarToggle(99L));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         verify(repository, never()).save(any());
     }
 }

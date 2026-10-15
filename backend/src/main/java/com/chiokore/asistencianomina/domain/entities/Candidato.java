@@ -1,4 +1,5 @@
 package com.chiokore.asistencianomina.domain.entities;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -7,6 +8,7 @@ import java.time.LocalDate;
 @Data
 @Entity
 @Table(name = "candidatos")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Candidato {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

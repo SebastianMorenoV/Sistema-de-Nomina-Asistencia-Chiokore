@@ -1,5 +1,8 @@
 package com.chiokore.asistencianomina.domain.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -14,6 +17,9 @@ import java.util.Objects;
 @Data
 @Entity
 @Table(name = "empleados")
+// Oculta los getters de UserDetails (incluye el hash en "password") y los campos internos de los proxies de Hibernate.
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "username", "authorities",
+        "accountNonExpired", "accountNonLocked", "credentialsNonExpired", "enabled"})
 public class Empleado implements UserDetails {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -34,12 +40,14 @@ public class Empleado implements UserDetails {
     private String nombre;
     @Lob
     private String urlAvatar;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String contrasena;
     @PositiveOrZero
     private Double tarifaHora;
     private Boolean requiereApoyo;
     
-    // Huella Dactilar
+    // Huella Dactilar (plantilla SourceAFIS en Base64; nunca se expone en la API)
+    @JsonIgnore
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String huellaDactilar;
@@ -53,6 +61,11 @@ public class Empleado implements UserDetails {
     private String contactoEmergenciaNombre;
     private String contactoEmergenciaTelefono;
     private String direccion;
+
+    @JsonProperty("tieneHuella")
+    public boolean tieneHuella() {
+        return huellaDactilar != null && !huellaDactilar.isBlank();
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

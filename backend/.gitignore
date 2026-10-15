@@ -39,3 +39,6 @@ src/main/resources/keys/
 *.jks
 *.p12
 *.pfx
+
+##properties java
+application.properties

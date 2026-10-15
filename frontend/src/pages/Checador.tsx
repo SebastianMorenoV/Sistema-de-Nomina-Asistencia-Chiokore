@@ -5,8 +5,8 @@ import EmpleadoCard from '../components/EmpleadoCard';
 import ActionModal from '../components/ActionModal';
 import Screensaver from '../components/Screensaver';
 import SuccessScreen from '../components/SuccessScreen';
-import { getApiErrorMessage, getEmpleados, kioskLogin, kioskFingerprintLogin } from '../services/api';
-import { useFingerprint } from '../hooks/useFingerprint';
+import { getApiErrorMessage, getEmpleados, kioskLogin, kioskFingerprintLogin, SIMULATED_FINGERPRINT } from '../services/api';
+import { useFingerprint, CAPTURE_CANCELLED } from '../hooks/useFingerprint';
 import { Fingerprint } from 'lucide-react';
 
 export default function Checador() {
@@ -28,38 +28,56 @@ export default function Checador() {
   const [isIdle, setIsIdle] = useState(false);
   const idleTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { isReady: fpReady, error: fpError, captureFingerprint } = useFingerprint();
+  const { isReady: fpReady, error: fpError, captureFingerprint, cancelCapture } = useFingerprint();
+  const [fpMensaje, setFpMensaje] = useState<string | null>(null);
+  // El lector solo escucha cuando el kiosco está libre; así un mismo dedo no dispara dos registros.
+  const fpPausado = isRegistering || !!showSuccess || !!selectedEmpleado || !!fpMensaje;
 
-  const listenForFingerprint = useCallback(async (simulate = false) => {
-    if (!simulate && (!fpReady || isRegistering || showSuccess || selectedEmpleado)) return;
-    
+  const registrarConHuella = useCallback(async (imagenB64: string) => {
+    setIsRegistering(true);
+    setIsIdle(false);
     try {
-      const base64Image = simulate ? "SIMULATED_FINGERPRINT_DATA" : await captureFingerprint();
-      setIsRegistering(true);
-      
-      const response = await kioskFingerprintLogin(base64Image);
-      const { movimiento, empleadoId, rol } = response.data;
-      
-      setRegistrosHoy((prev) => ({ ...prev, [empleadoId]: movimiento }));
-      console.info('JWT emitido y enviado al sistema consumidor', { empleadoId, movimiento, rol });
-      setShowSuccess(`${movimiento} registrada con éxito`);
-      
-      // Keep listening after a delay to avoid double scans
-      setTimeout(() => listenForFingerprint(), 3000);
-    } catch (err: any) {
-      if (err?.message !== "Lector no está listo" && err?.message !== "Reader is not ready") {
-         console.error("Error al registrar con huella:", err);
-         alert(getApiErrorMessage(err, 'Huella no reconocida o error al registrar'));
-      }
-      setTimeout(() => listenForFingerprint(), 2000);
+      const { data } = await kioskFingerprintLogin(imagenB64);
+      setRegistrosHoy((prev) => ({ ...prev, [data.empleadoId]: data.movimiento }));
+      console.info('JWT emitido y enviado al sistema consumidor', {
+        empleadoId: data.empleadoId,
+        movimiento: data.movimiento,
+        rol: data.rol,
+      });
+      setShowSuccess(`${data.movimiento} registrada con éxito, ${data.nombre}`);
+    } catch (err: unknown) {
+      setFpMensaje(getApiErrorMessage(err, 'Huella no reconocida. Intente de nuevo.'));
     } finally {
       setIsRegistering(false);
     }
-  }, [fpReady, isRegistering, showSuccess, selectedEmpleado, captureFingerprint]);
+  }, []);
 
   useEffect(() => {
-    listenForFingerprint();
-  }, [listenForFingerprint]);
+    if (!fpReady || fpPausado) return;
+
+    let cancelado = false;
+    captureFingerprint()
+      .then((imagen) => {
+        if (!cancelado) registrarConHuella(imagen);
+      })
+      .catch((err: unknown) => {
+        if (cancelado || (err instanceof Error && err.message === CAPTURE_CANCELLED)) return;
+        console.error('Error al leer la huella:', err);
+        setFpMensaje(getApiErrorMessage(err, 'No se pudo leer la huella. Intente de nuevo.'));
+      });
+
+    return () => {
+      cancelado = true;
+      cancelCapture();
+    };
+  }, [fpReady, fpPausado, captureFingerprint, cancelCapture, registrarConHuella]);
+
+  // El aviso de error se oculta solo y el lector vuelve a escuchar.
+  useEffect(() => {
+    if (!fpMensaje) return;
+    const timer = setTimeout(() => setFpMensaje(null), 3000);
+    return () => clearTimeout(timer);
+  }, [fpMensaje]);
 
   const resetIdleTimer = useCallback(() => {
     setIsIdle(false);
@@ -157,7 +175,10 @@ export default function Checador() {
           Toque su fotografía o coloque su dedo en el lector
           {fpReady ? <Fingerprint className="text-emerald-500 animate-pulse" size={32} /> : <Fingerprint className="text-stone-300" size={32} />}
         </p>
-        <button onClick={() => listenForFingerprint(true)} className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-bold text-stone-300 opacity-0 group-hover:opacity-100 hover:text-purple-500 transition-opacity">Simular Huella</button>
+        {!fpReady && fpError && <p className="text-base text-stone-400 mt-2">{fpError}</p>}
+        {import.meta.env.DEV && (
+          <button onClick={() => !fpPausado && registrarConHuella(SIMULATED_FINGERPRINT)} className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs font-bold text-stone-300 opacity-0 group-hover:opacity-100 hover:text-purple-500 transition-opacity">Simular Huella</button>
+        )}
       </header>
 
       <main className={`max-w-[1400px] mx-auto grid gap-10 ${isCompanionMode ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>
@@ -188,6 +209,13 @@ export default function Checador() {
       {showSuccess && (
         <div className="fixed inset-0 z-[95]">
           <SuccessScreen mensaje={showSuccess} onFinish={finishAction} />
+        </div>
+      )}
+
+      {fpMensaje && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[90] rounded-3xl bg-red-600 text-white px-10 py-6 shadow-2xl text-3xl font-bold flex items-center gap-4">
+          <Fingerprint size={40} />
+          {fpMensaje}
         </div>
       )}
 
