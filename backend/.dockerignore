@@ -1,0 +1,16 @@
+target/
+.mvn/
+mvnw
+mvnw.cmd
+fix_enums.js
+.idea/
+.vscode/
+*.iml
+
+# Las pruebas no se corren en la imagen
+src/test/
+
+# Configuración local con contraseñas: en Docker todo llega por variables de entorno
+src/main/resources/application.properties
+src/main/resources/keys/
+keys/

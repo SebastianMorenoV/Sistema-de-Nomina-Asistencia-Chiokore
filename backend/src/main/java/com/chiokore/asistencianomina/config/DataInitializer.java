@@ -109,6 +109,13 @@ public class DataInitializer implements CommandLineRunner {
                                 String urlAvatar) {
         Optional<Empleado> existente = empleadoRepo.findByNombre(nombre);
         if (existente.isPresent()) {
+            // Editar desde el panel borraba la contraseña (ya corregido); sin ella no se puede entrar al panel
+            Empleado empleado = existente.get();
+            if (empleado.getContrasena() == null) {
+                empleado.setContrasena(passwordHash);
+                empleadoRepo.save(empleado);
+                System.out.println("Se restableció la contraseña de prueba de '" + nombre + "'.");
+            }
             return;
         }
 

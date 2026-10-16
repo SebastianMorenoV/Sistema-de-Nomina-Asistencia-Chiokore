@@ -3,6 +3,8 @@ package com.chiokore.asistencianomina.dto;
 import com.chiokore.asistencianomina.domain.entities.Empleado;
 import lombok.Data;
 
+import java.time.LocalDate;
+
 @Data
 public class EmpleadoDto {
     private Long id;
@@ -19,6 +21,7 @@ public class EmpleadoDto {
     private String contactoEmergenciaNombre;
     private String contactoEmergenciaTelefono;
     private String direccion;
+    private LocalDate fechaNacimiento;
     private String urlAvatar;
     private Long candidatoId;
 
@@ -38,6 +41,7 @@ public class EmpleadoDto {
         dto.setContactoEmergenciaNombre(e.getContactoEmergenciaNombre());
         dto.setContactoEmergenciaTelefono(e.getContactoEmergenciaTelefono());
         dto.setDireccion(e.getDireccion());
+        dto.setFechaNacimiento(e.getFechaNacimiento());
         dto.setUrlAvatar(e.getUrlAvatar());
         dto.setCandidatoId(e.getCandidato() != null ? e.getCandidato().getId() : null);
         return dto;

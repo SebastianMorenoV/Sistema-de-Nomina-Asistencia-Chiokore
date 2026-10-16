@@ -36,7 +36,9 @@ public class Candidato {
     private TipoContrato tipoContrato;
 
     private String tipoSangre;
+    private LocalDate fechaNacimiento;
     
+    @Size(max = 1000)
     @Column(length = 1000)
     private String condicionesMedicas;
     

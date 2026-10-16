@@ -15,9 +15,11 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 
 @Configuration
 @EnableWebSecurity
@@ -35,16 +37,19 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/kiosk-login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
-                .requestMatchers("/api/empleados", "/api/empleados/**").permitAll()
+                // Lecturas que usan el kiosco, el POS y nómina
+                .requestMatchers(HttpMethod.GET, "/api/empleados", "/api/empleados/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/horarios").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/horarios", "/api/horarios/assign").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/nominas/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/asistencias", "/api/asistencias/**").permitAll()
+                // Registro de asistencia desde el kiosco
                 .requestMatchers(HttpMethod.POST, "/api/asistencias/registrar/**", "/api/asistencias/fingerprint").permitAll()
-                .requestMatchers("/api/candidatos", "/api/candidatos/**").permitAll()
                 .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .anyRequest().authenticated()
+                // Altas, cambios, bajas, huellas, horarios y candidatos: solo administradores
+                .anyRequest().hasRole("ADMINISTRADOR")
             )
+            // Sin token (o con uno vencido) responde 401 para que el panel pida iniciar sesión
+            .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

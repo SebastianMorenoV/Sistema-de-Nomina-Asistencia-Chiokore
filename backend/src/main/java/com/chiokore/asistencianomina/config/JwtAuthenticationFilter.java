@@ -36,7 +36,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         try {
-            if (jwtService.isTokenValid(token)) {
+            // Los tokens del kiosco se emiten sin contraseña, así que no dan permisos sobre esta API
+            if (jwtService.isTokenValid(token) && !jwtService.isKioskToken(token)) {
                 String username = jwtService.extractUsername(token);
 
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {

@@ -7,6 +7,7 @@ import com.chiokore.asistencianomina.repositories.HorarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
@@ -17,6 +18,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -155,5 +157,27 @@ class HorarioControllerTest {
                 .andExpect(status().isOk());
 
         verify(horarioRepository, times(1)).save(any(Horario.class));
+    }
+
+    @Test
+    void assignHorario_conHoraFin_debeUsarlaEnLugarDeCuatroHoras() throws Exception {
+        Empleado empNew = new Empleado();
+        empNew.setId(2L);
+        empNew.setNombre("Nuevo");
+
+        when(empleadoRepository.findById(2L)).thenReturn(Optional.of(empNew));
+        when(horarioRepository.save(any(Horario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        String json = "{\"diaSemana\":\"MARTES\",\"horaInicio\":\"15:00\",\"horaFin\":\"18:00\",\"newEmpleadoId\":2}";
+
+        mockMvc.perform(post("/api/horarios/assign")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Horario> guardado = ArgumentCaptor.forClass(Horario.class);
+        verify(horarioRepository).save(guardado.capture());
+        assertEquals(LocalTime.of(15, 0), guardado.getValue().getHoraInicio());
+        assertEquals(LocalTime.of(18, 0), guardado.getValue().getHoraFin());
     }
 }

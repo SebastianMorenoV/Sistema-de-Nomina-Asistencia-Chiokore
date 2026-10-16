@@ -35,6 +35,9 @@ target/
 .env.test
 .env.production
 
+# Llaves de los JWT (el backend las genera la primera vez)
+*.pem
+
 # Archivos de Sistema Operativo
 .DS_Store
 Thumbs.db

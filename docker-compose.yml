@@ -1,0 +1,75 @@
+# Levanta todo el sistema: docker compose up -d --build
+# Todo tiene valores por defecto; para cambiarlos copia .env.example a .env
+# En Docker Desktop aparece como el grupo "chiokore-asistencia" (asistencia-db, asistencia-backend,
+# asistencia-frontend). No choca con el POS ("chiokore-pos": 3307, 8082 y 5175), que busca esta API
+# en http://host.docker.internal:8080
+name: chiokore-asistencia
+
+services:
+  db:
+    image: mysql:8.4
+    container_name: asistencia-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-chiokore-root}
+      MYSQL_DATABASE: nomina_asistencia
+      MYSQL_USER: ${MYSQL_USER:-chiokore}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-chiokore}
+      TZ: ${ZONA_HORARIA:-America/Hermosillo}
+    ports:
+      # 3308 para no chocar con un MySQL instalado (3306) ni con el del POS (3307)
+      - "127.0.0.1:${DB_PORT:-3308}:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      # Por TCP: durante la primera inicialización MySQL arranca un servidor temporal sin red
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  backend:
+    build: ./backend
+    container_name: asistencia-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/nomina_asistencia?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-chiokore}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-chiokore}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      APP_HUELLA_SIMULACION: ${APP_HUELLA_SIMULACION:-false}
+      APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+      TZ: ${ZONA_HORARIA:-America/Hermosillo}
+      # Las llaves de los JWT se generan la primera vez y se guardan en el volumen,
+      # así los tokens siguen sirviendo después de reiniciar
+      JWT_RSA_PRIVATE_KEY_PATH: /app/keys/private_key.pem
+      JWT_RSA_PUBLIC_KEY_PATH: /app/keys/public_key.pem
+    volumes:
+      - jwt-keys:/app/keys
+    ports:
+      # Lo usan el frontend en modo dev (npm run dev) y los otros sistemas (el POS lo busca en el 8080)
+      - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/auth/public-key > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  frontend:
+    build: ./frontend
+    container_name: asistencia-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+
+volumes:
+  db-data:
+  jwt-keys:

@@ -39,27 +39,24 @@ Para que cualquier desarrollador pueda levantar el sistema en su máquina local,
 Para evitar problemas de conexión al momento de arrancar el backend, tu servidor local de MySQL **debe estar configurado** de la siguiente manera:
 
 1. Abre tu cliente de MySQL (Workbench, DBeaver, o consola).
-2. Crea una base de datos vacía llamada exactamente así:
-   \`\`\`sql
+2. Crea una base de datos vacía llamada exactamente así (si no existe, el backend también la crea):
+   ```sql
    CREATE DATABASE nomina_asistencia;
-   \`\`\`
-3. Las credenciales de acceso están configuradas (en `backend/src/main/resources/application.properties`):
-   - **Usuario:** `root`
-   - **Contraseña:** `itson` *(Esta es la contraseña configurada actualmente en el proyecto. Si tu MySQL local tiene otra, cámbiala en el archivo)*.
+   ```
+3. El usuario y la contraseña de MySQL van en tu `application.properties` (ver la siguiente sección).
 
 > **💡 Nota de Seeders:** La primera vez que el backend se ejecute con éxito de conexión, la Base de Datos se llenará automáticamente con datos de prueba gracias a la clase `DataInitializer.java`. ¡No tienes que insertar nada a mano!
 
+> **Si tu base de datos es de antes de octubre 2026:** Hibernate no agranda columnas existentes, así que corre una vez `ALTER TABLE empleados MODIFY condiciones_medicas VARCHAR(1000);` para que la "Condición" acepte el mismo largo que en candidatos.
+
 ### 🔐 Configurar el `application.properties`
 
-1. Copiá el template:
+1. Copia el template:
    ```bash
    cp backend/src/main/resources/application.properties.example backend/src/main/resources/application.properties
    ```
-2. Llená estos 3 campos:
-   - `spring.datasource.password` → tu contraseña de MySQL
-   - `jwt.secret` → generá uno con `openssl rand -base64 32`
-   - `server.port` → ajustá el puerto si no usás `8080`
-3. Listo. El archivo real está en `.gitignore`, solo se sube el `.example`.
+2. Pon tu contraseña de MySQL en `spring.datasource.password` (y cambia `server.port` si no usas `8080`).
+3. Listo. El archivo real está en `.gitignore`, solo se sube el `.example`. Las llaves de los tokens se generan solas la primera vez en `backend/keys/`.
 
 ---
 
@@ -69,9 +66,9 @@ Debes arrancar ambos servidores de forma paralela en dos terminales distintas.
 
 ### 1. Levantar el Backend (Motor de Java)
 Abre una terminal y navega hacia la carpeta backend:
-\`\`\`bash
-cd Software/backend
-\`\`\`
+```bash
+cd backend
+```
 Ejecuta el proyecto mediante Maven Wrapper:
 - En Windows: `mvnw.cmd spring-boot:run`
 - En Mac/Linux: `./mvnw spring-boot:run`
@@ -79,18 +76,25 @@ Ejecuta el proyecto mediante Maven Wrapper:
 
 ### 2. Levantar el Frontend (Interfaz React)
 Abre otra terminal y navega hacia la carpeta frontend:
-\`\`\`bash
-cd Software/frontend
-\`\`\`
+```bash
+cd frontend
+```
 Instala las dependencias la primera vez:
-\`\`\`bash
+```bash
 npm install
-\`\`\`
+```
 Inicia el servidor de desarrollo Vite:
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 *La interfaz arrancará en `http://localhost:5173`. ¡Abre esta liga en tu navegador web!*
+
+---
+
+## 🔐 Acceso al panel y a la API
+
+- El panel `/admin` pide usuario y contraseña: `admin` / `1234` (los de los datos de prueba). La contraseña de un administrador se cambia desde su ficha en el panel.
+- Las lecturas que usan el kiosco, el POS y nómina (`GET /api/empleados`, `/api/empleados/pos-status`, `/api/asistencias`) son públicas, igual que el registro de asistencia del kiosco. Crear, editar o borrar empleados, candidatos, horarios y huellas, y consultar candidatos, requiere un token de administrador: se obtiene con `POST /api/auth/login` y se manda como `Authorization: Bearer <token>`.
 
 ---
 

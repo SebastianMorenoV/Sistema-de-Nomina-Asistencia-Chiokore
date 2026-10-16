@@ -4,6 +4,7 @@ import com.chiokore.asistencianomina.domain.entities.Empleado;
 import com.chiokore.asistencianomina.domain.entities.Rol;
 import com.chiokore.asistencianomina.domain.entities.TipoContrato;
 import com.chiokore.asistencianomina.dto.EmpleadoRequest;
+import com.chiokore.asistencianomina.exception.GlobalExceptionHandler;
 import com.chiokore.asistencianomina.services.EmpleadoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,7 +35,9 @@ class EmpleadoControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new EmpleadoController(service)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new EmpleadoController(service))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
     }
 
     private Rol crearRol() {
@@ -101,6 +106,45 @@ class EmpleadoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.nombre").value("Empleado Editado"));
+    }
+
+    @Test
+    void getCumpleaneros_debeUsarElMesIndicado() throws Exception {
+        Empleado e = new Empleado();
+        e.setId(1L);
+        e.setNombre("Ana Gómez");
+        e.setFechaNacimiento(LocalDate.of(1990, 10, 25));
+
+        when(service.obtenerCumpleaneros(10)).thenReturn(List.of(e));
+
+        mockMvc.perform(get("/api/empleados/cumpleaneros").param("mes", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].nombre").value("Ana Gómez"))
+                .andExpect(jsonPath("$[0].fechaNacimiento").value("1990-10-25"));
+    }
+
+    @Test
+    void getCumpleaneros_sinMes_debeUsarElMesActual() throws Exception {
+        when(service.obtenerCumpleaneros(anyInt())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/empleados/cumpleaneros"))
+                .andExpect(status().isOk());
+
+        verify(service).obtenerCumpleaneros(LocalDate.now().getMonthValue());
+    }
+
+    @Test
+    void getCumpleaneros_conMesNoNumerico_debeResponder400() throws Exception {
+        mockMvc.perform(get("/api/empleados/cumpleaneros").param("mes", "abc"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void create_conJsonMalFormado_debeResponder400() throws Exception {
+        mockMvc.perform(post("/api/empleados")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{mal"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

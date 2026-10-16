@@ -34,6 +34,7 @@ public class HorarioController {
     public static class AssignRequest {
         private String diaSemana;
         private String horaInicio;
+        private String horaFin;
         private Long oldEmpleadoId;
         private Long newEmpleadoId;
     }
@@ -67,7 +68,10 @@ public class HorarioController {
                 h.setDiaSemana(req.getDiaSemana());
                 try {
                     h.setHoraInicio(java.time.LocalTime.parse(req.getHoraInicio() + ":00"));
-                    h.setHoraFin(h.getHoraInicio().plusHours(4)); // Asumir 4 horas, o depender de lógica
+                    // El panel manda dónde termina cada turno (9 a 1, 3 a 6); si no llega se asumen 4 horas
+                    h.setHoraFin(req.getHoraFin() != null
+                            ? java.time.LocalTime.parse(req.getHoraFin() + ":00")
+                            : h.getHoraInicio().plusHours(4));
                 } catch (Exception e) {}
                 horarioRepository.save(h);
             });

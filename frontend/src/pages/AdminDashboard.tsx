@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Trash2, Edit, Clock, ShieldCheck, Search, Fingerprint } from 'lucide-react';
+import { Users, CalendarDays, LogOut, HeartPulse, ChevronDown, ChevronUp, UserPlus, Trash2, Edit, Clock, ShieldCheck, Search, Fingerprint, Cake } from 'lucide-react';
 import EmployeeModal from '../components/EmployeeModal';
 import CandidatoModal from '../components/CandidatoModal';
 import {
   assignHorario,
   deleteEmpleado,
   getEmpleados,
+  getCumpleaneros,
   getHorarios,
   saveEmpleado,
   getCandidatos,
@@ -15,9 +16,22 @@ import {
   enrollFingerprint,
   getAllAsistencias,
   getApiErrorMessage,
+  setAdminToken,
   SIMULATED_FINGERPRINT,
+  type AsistenciaResumen,
+  type Cumpleanero,
 } from '../services/api';
 import { useFingerprint, CAPTURE_CANCELLED } from '../hooks/useFingerprint';
+import { rangoMesActual } from '../utils/fechas';
+
+// En la BD los contratos se llaman PAGADO y VOLUNTARIO
+type ConContrato = { tipoContrato?: { nombre?: string } };
+const esVoluntario = (emp: ConContrato) => emp.tipoContrato?.nombre?.toUpperCase() === 'VOLUNTARIO';
+const esPagado = (emp: ConContrato) => emp.tipoContrato?.nombre?.toUpperCase() === 'PAGADO';
+
+// Los voluntarios cubren el mismo horario que el turno pagado de la mañana o de la tarde
+const horarioDeTurno = (turnoId: string) =>
+  turnoId === 't1' || turnoId === 'v1' ? { inicio: '09:00', fin: '13:00' } : { inicio: '15:00', fin: '18:00' };
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('empleados');
@@ -34,6 +48,8 @@ export default function AdminDashboard() {
   const [mockEmpleados, setMockEmpleados] = useState<any[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [asistencias, setAsistencias] = useState<any[]>([]);
+  const [asistenciasMes, setAsistenciasMes] = useState<AsistenciaResumen[]>([]);
+  const [cumpleaneros, setCumpleaneros] = useState<Cumpleanero[]>([]);
   const [modalEmp, setModalEmp] = useState<{data: any, isNew: boolean} | null>(null);
   const [modalCand, setModalCand] = useState<{data: any, isNew: boolean} | null>(null);
   const [payoutModalCand, setPayoutModalCand] = useState<any>(null);
@@ -57,6 +73,7 @@ export default function AdminDashboard() {
     try {
       const resEmp = await getEmpleados();
       setMockEmpleados(Array.isArray(resEmp.data) ? resEmp.data : []);
+      await fetchCumpleaneros();
       
       const resCand = await getCandidatos();
       setCandidatos(Array.isArray(resCand.data?.content) ? resCand.data.content : (Array.isArray(resCand.data) ? resCand.data : []));
@@ -65,6 +82,7 @@ export default function AdminDashboard() {
       setHorarios(Array.isArray(resHor.data) ? resHor.data : []);
 
       await fetchAsistencias();
+      await fetchAsistenciasMes();
     } catch (err) {
       console.error("Error fetching data", err);
       setMockEmpleados([]);
@@ -81,6 +99,28 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Error fetching asistencias", err);
       setAsistencias([]);
+    }
+  };
+
+  // El Empleado del Mes se calcula con el mes actual, sin importar los filtros de la tabla
+  const fetchAsistenciasMes = async () => {
+    try {
+      const { inicio, fin } = rangoMesActual();
+      const resMes = await getAllAsistencias(inicio, fin);
+      setAsistenciasMes(Array.isArray(resMes.data) ? resMes.data : []);
+    } catch (err) {
+      console.error("Error fetching asistencias del mes", err);
+      setAsistenciasMes([]);
+    }
+  };
+
+  const fetchCumpleaneros = async () => {
+    try {
+      const resCumple = await getCumpleaneros(new Date().getMonth() + 1);
+      setCumpleaneros(Array.isArray(resCumple.data) ? resCumple.data : []);
+    } catch (err) {
+      console.error("Error fetching cumpleañeros", err);
+      setCumpleaneros([]);
     }
   };
 
@@ -156,6 +196,7 @@ export default function AdminDashboard() {
         rolId: cand.rol?.id,
         tipoContratoId: cand.tipoContrato?.id,
         tipoSangre: cand.tipoSangre,
+        fechaNacimiento: cand.fechaNacimiento,
         condicionesMedicas: cand.condicionesMedicas,
         contactoEmergenciaNombre: cand.contactoEmergenciaNombre,
         contactoEmergenciaTelefono: cand.contactoEmergenciaTelefono,
@@ -231,7 +272,7 @@ export default function AdminDashboard() {
               <th className="p-4 font-semibold">Nombre</th>
               <th className="p-4 font-semibold">Rol</th>
               <th className="p-4 font-semibold">Contrato</th>
-              <th className="p-4 font-semibold text-center">Condiciones Médicas</th>
+              <th className="p-4 font-semibold text-center">Condición</th>
               <th className="p-4 font-semibold text-center">Apoyo Visual</th>
               <th className="p-4 font-semibold text-right">Acciones</th>
             </tr>
@@ -241,7 +282,7 @@ export default function AdminDashboard() {
               <React.Fragment key={emp.id}>
                 <tr className={`border-b border-stone-100 hover:bg-stone-50 transition-colors ${expandedEmp === emp.id ? 'bg-orange-50' : ''}`}>
                   <td className="p-4 font-medium text-stone-800 text-lg flex items-center gap-3">
-                    <img src={emp.urlAvatar} alt={emp.nombre} className="w-14 h-14 shadow-md rounded-full object-cover border-2 border-stone-200" />
+                    <img src={emp.urlAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.nombre)}&size=200&background=random`} alt={emp.nombre} className="w-14 h-14 shadow-md rounded-full object-cover border-2 border-stone-200" />
                     {emp.nombre}
                   </td>
                   <td className="p-4 text-stone-600"><span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm font-bold">{emp.rol?.nombre || 'Sin Rol'}</span></td>
@@ -267,14 +308,14 @@ export default function AdminDashboard() {
                 </tr>
                 {expandedEmp === emp.id && (
                   <tr className="bg-orange-50/50 border-b border-stone-200">
-                    <td colSpan={5} className="p-6">
+                    <td colSpan={6} className="p-6">
                       <div className="flex items-start gap-8">
                         <div className="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex-1">
                           <HeartPulse className="text-red-500 w-12 h-12" />
                           <div>
                             <p className="text-sm text-stone-500 font-bold uppercase tracking-wider">Ficha Médica</p>
                             <p className="text-stone-800 mt-1"><strong>Sangre:</strong> {emp.tipoSangre}</p>
-                            <p className="text-stone-800"><strong>Condiciones:</strong> {emp.condicionesMedicas}</p>
+                            <p className="text-stone-800"><strong>Condición:</strong> {emp.condicionesMedicas}</p>
                           </div>
                         </div>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-orange-100 flex-1">
@@ -298,9 +339,7 @@ export default function AdminDashboard() {
   );
 
   const getAssignedEmployeeId = (dia: string, turnoId: string, slotIndex: number) => {
-    let horaInicio = '';
-    if (turnoId === 't1' || turnoId === 'v1') horaInicio = '09:00';
-    if (turnoId === 't2' || turnoId === 'v2') horaInicio = '15:00';
+    const horaInicio = horarioDeTurno(turnoId).inicio;
 
     const assigned = horarios.filter(h => {
        if (!h.diaSemana || !h.horaInicio) return false;
@@ -308,7 +347,7 @@ export default function AdminDashboard() {
        const isSameTime = h.horaInicio.startsWith(horaInicio);
        const emp = mockEmpleados.find(e => e.id === h.empleadoId);
        if (!emp) return false;
-       const isVoluntario = emp.tipoContrato?.nombre === 'Voluntariado';
+       const isVoluntario = esVoluntario(emp);
        const isTurnoVoluntario = turnoId.startsWith('v');
        return isSameDay && isSameTime && (isVoluntario === isTurnoVoluntario);
     });
@@ -318,13 +357,12 @@ export default function AdminDashboard() {
 
   const handleAssignShift = async (dia: string, turnoId: string, oldEmpId: string, newEmpId: string) => {
     try {
-      let horaInicio = '';
-      if (turnoId === 't1' || turnoId === 'v1') horaInicio = '09:00';
-      if (turnoId === 't2' || turnoId === 'v2') horaInicio = '15:00';
+      const { inicio, fin } = horarioDeTurno(turnoId);
       
       await assignHorario({
         diaSemana: dia,
-        horaInicio: horaInicio,
+        horaInicio: inicio,
+        horaFin: fin,
         oldEmpleadoId: oldEmpId ? parseInt(oldEmpId) : null,
         newEmpleadoId: newEmpId ? parseInt(newEmpId) : null
       });
@@ -377,7 +415,7 @@ export default function AdminDashboard() {
                           }}
                         >
                           <option value="">- Vacío -</option>
-                          {mockEmpleados.filter(e => turno.tipo === 'Voluntario' ? e.tipoContrato?.nombre === 'Voluntariado' : e.tipoContrato?.nombre === 'Pagado').map(emp => (
+                          {mockEmpleados.filter(e => turno.tipo === 'Voluntario' ? esVoluntario(e) : esPagado(e)).map(emp => (
                             <option key={emp.id} value={emp.id}>{emp.nombre}</option>
                           ))}
                         </select>
@@ -449,7 +487,8 @@ export default function AdminDashboard() {
                   <p><strong>Tipo de Sangre:</strong><br/>{selectedCandidato.tipoSangre || 'N/A'}</p>
                   <p><strong>Rol:</strong><br/>{selectedCandidato.rol?.nombre || 'N/A'}</p>
                   <p><strong>Contrato:</strong><br/>{selectedCandidato.tipoContrato?.nombre || 'N/A'}</p>
-                  <p className="col-span-2"><strong>Condiciones Médicas:</strong><br/>{selectedCandidato.condicionesMedicas || 'Ninguna'}</p>
+                  <p className="col-span-2"><strong>Fecha de Nacimiento:</strong><br/>{selectedCandidato.fechaNacimiento || 'N/A'}</p>
+                  <p className="col-span-2"><strong>Condición:</strong><br/>{selectedCandidato.condicionesMedicas || 'Ninguna'}</p>
                   <p className="col-span-2"><strong>Contacto de Emergencia:</strong><br/>{selectedCandidato.contactoEmergenciaNombre || 'N/A'} {selectedCandidato.contactoEmergenciaTelefono ? `(${selectedCandidato.contactoEmergenciaTelefono})` : ''}</p>
                   <p className="col-span-2"><strong>Apoyo Visual:</strong><br/>{selectedCandidato.requiereApoyo ? 'Sí, requiere acompañante' : 'No'}</p>
                   <p className="col-span-2 mt-2 pt-4 border-t border-stone-200"><strong>Notas de Entrevista:</strong><br/>{selectedCandidato.notas || 'Sin notas.'}</p>
@@ -476,11 +515,53 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const renderCumpleaneros = () => {
+    const hoy = new Date();
+    const nombreMes = hoy.toLocaleDateString('es-MX', { month: 'long' });
+
+    return (
+      <div className="mb-10 bg-gradient-to-r from-pink-500 to-rose-500 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl"></div>
+
+        <div className="z-10 relative">
+          <div className="flex items-center gap-2 text-pink-100 font-bold tracking-widest text-sm mb-4">
+            <Cake size={18} /> CUMPLEAÑEROS DE {nombreMes.toUpperCase()}
+          </div>
+
+          {cumpleaneros.length === 0 ? (
+            <p className="text-xl font-medium text-pink-50">Nadie cumple años este mes. Registra la fecha de nacimiento en la ficha de cada empleado.</p>
+          ) : (
+            <div className="flex flex-wrap gap-4">
+              {cumpleaneros.map(emp => {
+                // "AAAA-MM-DD" se separa a mano: new Date() lo leería en UTC y movería el día
+                const [, mes, dia] = emp.fechaNacimiento.split('-').map(Number);
+                const esHoy = mes === hoy.getMonth() + 1 && dia === hoy.getDate();
+                return (
+                  <div key={emp.id} className={`flex items-center gap-4 rounded-2xl pl-3 pr-6 py-3 ${esHoy ? 'bg-white text-rose-600 shadow-lg' : 'bg-white/15'}`}>
+                    {emp.urlAvatar ? (
+                      <img src={emp.urlAvatar} alt={emp.nombre} className="w-16 h-16 rounded-full object-cover border-2 border-white/40" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center"><Users size={28} /></div>
+                    )}
+                    <div>
+                      <p className="text-2xl font-black">{emp.nombre}</p>
+                      <p className="font-medium">{esHoy ? '¡Hoy es su cumpleaños!' : `${dia} de ${nombreMes}`}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderAsistencias = () => {
-    // Calcular horas totales por empleado para Empleado del Mes
+    // Calcular horas totales por empleado para Empleado del Mes (solo el mes actual)
     const horasPorEmpleado: { [key: number]: { nombre: string; urlAvatar?: string; horas: number } } = {};
     
-    asistencias.forEach(a => {
+    asistenciasMes.forEach(a => {
       const empId = a.empleado.id;
       if (!horasPorEmpleado[empId]) {
         horasPorEmpleado[empId] = {
@@ -540,6 +621,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {renderCumpleaneros()}
 
         <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
           <table className="w-full text-left">
@@ -604,8 +687,8 @@ export default function AdminDashboard() {
           </button>
         </nav>
         <div className="p-6 border-t border-stone-800">
-          <Link to="/" className="flex items-center gap-3 w-full p-4 hover:bg-stone-800 text-stone-400 hover:text-white rounded-xl transition-colors font-bold">
-            <LogOut size={20} /> Volver al Checador
+          <Link to="/" onClick={() => setAdminToken(null)} className="flex items-center gap-3 w-full p-4 hover:bg-stone-800 text-stone-400 hover:text-white rounded-xl transition-colors font-bold">
+            <LogOut size={20} /> Cerrar sesión
           </Link>
         </div>
       </div>

@@ -27,6 +27,14 @@ public class EmpleadoController {
         return service.getPosStatus();
     }
 
+    /**
+     * Cumpleañeros del mes (1-12). Si no se indica, usa el mes actual.
+     */
+    @GetMapping("/cumpleaneros")
+    public java.util.List<Empleado> getCumpleaneros(@RequestParam(required = false) Integer mes) {
+        return service.obtenerCumpleaneros(mes != null ? mes : java.time.LocalDate.now().getMonthValue());
+    }
+
     @PostMapping
     public Empleado create(@Valid @RequestBody EmpleadoRequest request) {
         return service.crear(request);

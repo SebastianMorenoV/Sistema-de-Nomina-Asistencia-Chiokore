@@ -16,6 +16,7 @@ type Empleado = {
   contactoEmergenciaNombre?: string;
   contactoEmergenciaTelefono?: string;
   urlAvatar?: string;
+  fechaNacimiento?: string | null;
   tieneHuella?: boolean;
 };
 
@@ -60,10 +61,46 @@ type EmpleadoFormPayload = Partial<Empleado> & {
   contactoEmergenciaNombre?: string;
   contactoEmergenciaTelefono?: string;
   urlAvatar?: string;
+  fechaNacimiento?: string | null;
 };
+
+/** IDs de los roles en la BD: DataInitializer crea primero ADMINISTRADOR y luego TRABAJADOR. */
+export const ROL_ADMINISTRADOR = 1;
+export const ROL_TRABAJADOR = 2;
+
+/** La API pagina de 20 en 20; el kiosco y el panel necesitan la lista completa. */
+const TAMANO_LISTA = 1000;
+
+const TOKEN_KEY = 'chiokore.adminToken';
+
+/** Se dispara cuando el token del panel ya no sirve (venció o cambiaron las llaves). */
+export const SESION_EXPIRADA = 'chiokore:sesion-expirada';
+
+export function getAdminToken() {
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+export function setAdminToken(token: string | null) {
+  if (token) sessionStorage.setItem(TOKEN_KEY, token);
+  else sessionStorage.removeItem(TOKEN_KEY);
+}
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+});
+
+api.interceptors.request.use((config) => {
+  const token = getAdminToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(undefined, (error) => {
+  if (axios.isAxiosError(error) && error.response?.status === 401 && error.config?.headers?.Authorization) {
+    setAdminToken(null);
+    window.dispatchEvent(new Event(SESION_EXPIRADA));
+  }
+  return Promise.reject(error);
 });
 
 function unwrapListResponse<T>(data: T[] | PagedResponse<T>): T[] {
@@ -71,13 +108,20 @@ function unwrapListResponse<T>(data: T[] | PagedResponse<T>): T[] {
 }
 
 export async function getEmpleados() {
-  const response = await api.get<Empleado[] | PagedResponse<Empleado>>('/empleados');
+  const response = await api.get<Empleado[] | PagedResponse<Empleado>>('/empleados', { params: { size: TAMANO_LISTA } });
   return { data: unwrapListResponse(response.data) };
 }
 
 export async function saveEmpleado(data: EmpleadoFormPayload) {
   if (data.id) return api.put(`/empleados/${data.id}`, data);
   return api.post('/empleados', data);
+}
+
+export type Cumpleanero = Empleado & { fechaNacimiento: string };
+
+/** Empleados activos que cumplen años en el mes indicado (1-12), ordenados por día. */
+export async function getCumpleaneros(mes: number) {
+  return api.get<Cumpleanero[]>('/empleados/cumpleaneros', { params: { mes } });
 }
 
 /** Valor que el backend acepta como huella simulada cuando app.huella.simulacion=true. */
@@ -94,7 +138,7 @@ export async function getHorarios() {
   return api.get('/horarios');
 }
 
-export async function assignHorario(payload: { diaSemana: string; horaInicio: string; oldEmpleadoId?: number | null; newEmpleadoId?: number | null }) {
+export async function assignHorario(payload: { diaSemana: string; horaInicio: string; horaFin: string; oldEmpleadoId?: number | null; newEmpleadoId?: number | null }) {
   return api.post('/horarios/assign', payload);
 }
 
@@ -119,6 +163,13 @@ export async function getNominaSemanal(query: string) {
 export async function registrarAsistencia(empleadoId: number) {
   return api.post(`/asistencias/registrar/${empleadoId}`);
 }
+
+export type AsistenciaResumen = {
+  id: number;
+  fecha: string;
+  horasCalculadas?: number | null;
+  empleado: { id: number; nombre: string; urlAvatar?: string };
+};
 
 export async function getAllAsistencias(startDate?: string, endDate?: string) {
   const params = new URLSearchParams();
@@ -154,7 +205,7 @@ export async function getPublicKey() {
 }
 
 export async function getCandidatos() {
-  return api.get<any>('/candidatos?size=100');
+  return api.get<any>('/candidatos', { params: { size: TAMANO_LISTA } });
 }
 
 export async function saveCandidato(data: any) {

@@ -12,7 +12,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +35,9 @@ class EmpleadoServiceTest {
 
     @Mock
     private TipoContratoRepository tipoContratoRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
 
     @InjectMocks
     private EmpleadoService service;
@@ -64,6 +71,7 @@ class EmpleadoServiceTest {
         dto.setTarifaHora(50.0);
         dto.setRolId(1L);
         dto.setTipoContratoId(2L);
+        dto.setFechaNacimiento(LocalDate.of(1995, 3, 14));
 
         Rol rol = new Rol();
         rol.setId(1L);
@@ -86,9 +94,71 @@ class EmpleadoServiceTest {
         assertEquals(10L, resultado.getId());
         assertEquals("Nuevo Empleado", resultado.getNombre());
         assertEquals(50.0, resultado.getTarifaHora());
+        assertEquals(LocalDate.of(1995, 3, 14), resultado.getFechaNacimiento());
         assertEquals(rol, resultado.getRol());
         assertEquals(tc, resultado.getTipoContrato());
         verify(repository, times(1)).save(any(Empleado.class));
+    }
+
+    @Test
+    void actualizar_sinContrasena_debeConservarLaActual() {
+        Empleado existente = crearEmpleado(1L, "admin", true);
+        existente.setContrasena("hash-actual");
+
+        EmpleadoRequest dto = new EmpleadoRequest();
+        dto.setNombre("admin");
+        dto.setContrasena("");
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existente));
+        when(repository.save(any(Empleado.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Empleado resultado = service.actualizar(1L, dto);
+
+        assertEquals("hash-actual", resultado.getContrasena());
+        verifyNoInteractions(passwordEncoder);
+    }
+
+    @Test
+    void actualizar_conContrasenaNueva_debeGuardarlaCifrada() {
+        Empleado existente = crearEmpleado(1L, "admin", true);
+        existente.setContrasena("hash-actual");
+
+        EmpleadoRequest dto = new EmpleadoRequest();
+        dto.setNombre("admin");
+        dto.setContrasena("nueva");
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existente));
+        when(passwordEncoder.encode("nueva")).thenReturn("hash-nuevo");
+        when(repository.save(any(Empleado.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Empleado resultado = service.actualizar(1L, dto);
+
+        assertEquals("hash-nuevo", resultado.getContrasena());
+    }
+
+    @Test
+    void obtenerCumpleaneros_debeFiltrarPorMesYOrdenarPorDia() {
+        Empleado ana = crearEmpleado(1L, "Ana Gómez", true);
+        ana.setFechaNacimiento(LocalDate.of(1990, 10, 25));
+        Empleado juan = crearEmpleado(2L, "Juan Pérez", true);
+        juan.setFechaNacimiento(LocalDate.of(1985, 10, 3));
+        Empleado otroMes = crearEmpleado(3L, "Luis Ruiz", true);
+        otroMes.setFechaNacimiento(LocalDate.of(1992, 11, 3));
+        Empleado sinFecha = crearEmpleado(4L, "Sin Fecha", true);
+        when(repository.findByActivoTrue()).thenReturn(List.of(ana, juan, otroMes, sinFecha));
+
+        List<Empleado> resultado = service.obtenerCumpleaneros(10);
+
+        assertEquals(List.of(juan, ana), resultado);
+    }
+
+    @Test
+    void obtenerCumpleaneros_conMesInvalido_debeLanzarBadRequest() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.obtenerCumpleaneros(13));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verifyNoInteractions(repository);
     }
 
     @Test

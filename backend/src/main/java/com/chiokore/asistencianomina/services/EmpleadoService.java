@@ -8,9 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -21,6 +23,7 @@ public class EmpleadoService {
     private final TipoContratoRepository tipoContratoRepository;
     private final com.chiokore.asistencianomina.repositories.AsistenciaRepository asistenciaRepository;
     private final BiometricService biometricService;
+    private final PasswordEncoder passwordEncoder;
     
     public List<Empleado> obtenerActivos() {
         return repository.findByActivoTrue();
@@ -63,6 +66,20 @@ public class EmpleadoService {
         return repository.findByActivoTrue(pageable);
     }
 
+    /**
+     * Empleados activos que cumplen años en el mes indicado (1-12), ordenados por día.
+     */
+    public List<Empleado> obtenerCumpleaneros(int mes) {
+        if (mes < 1 || mes > 12) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El mes debe estar entre 1 y 12.");
+        }
+        return repository.findByActivoTrue().stream()
+                .filter(e -> e.getFechaNacimiento() != null && e.getFechaNacimiento().getMonthValue() == mes)
+                .sorted(Comparator.comparingInt((Empleado e) -> e.getFechaNacimiento().getDayOfMonth())
+                        .thenComparing(Empleado::getNombre))
+                .toList();
+    }
+
     public void softDelete(Long id) {
         repository.findById(id).ifPresent(e -> {
             e.setActivo(false);
@@ -72,7 +89,10 @@ public class EmpleadoService {
 
     private void aplicarDto(Empleado e, EmpleadoRequest dto) {
         e.setNombre(dto.getNombre());
-        e.setContrasena(dto.getContrasena());
+        // Sin contraseña nueva se conserva la actual; el login de administradores la compara con BCrypt
+        if (dto.getContrasena() != null && !dto.getContrasena().isBlank()) {
+            e.setContrasena(passwordEncoder.encode(dto.getContrasena()));
+        }
         e.setTarifaHora(dto.getTarifaHora());
         e.setRequiereApoyo(dto.getRequiereApoyo());
         e.setTipoSangre(dto.getTipoSangre());
@@ -80,6 +100,7 @@ public class EmpleadoService {
         e.setContactoEmergenciaNombre(dto.getContactoEmergenciaNombre());
         e.setContactoEmergenciaTelefono(dto.getContactoEmergenciaTelefono());
         e.setDireccion(dto.getDireccion());
+        e.setFechaNacimiento(dto.getFechaNacimiento());
         e.setUrlAvatar(dto.getUrlAvatar());
 
         if (dto.getRolId() != null) {

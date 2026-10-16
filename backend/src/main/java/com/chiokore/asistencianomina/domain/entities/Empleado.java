@@ -10,6 +10,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -57,10 +58,15 @@ public class Empleado implements UserDetails {
     
     // Info medica y emergencia
     private String tipoSangre;
+    // Mismo largo que en Candidato para que la contratación no falle
+    @Column(length = 1000)
     private String condicionesMedicas;
     private String contactoEmergenciaNombre;
     private String contactoEmergenciaTelefono;
     private String direccion;
+
+    // Se usa para mostrar a los cumpleañeros del mes
+    private LocalDate fechaNacimiento;
 
     @JsonProperty("tieneHuella")
     public boolean tieneHuella() {

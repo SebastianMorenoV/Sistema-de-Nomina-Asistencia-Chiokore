@@ -4,6 +4,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -24,9 +26,10 @@ import java.util.Base64;
 /**
  * Centraliza la carga o generación del material RSA usado por el IdP.
  *
- * En desarrollo puede generar un par efímero si los archivos configurados no existen.
- * En entornos persistentes se recomienda entregar las llaves por archivo o secreto.
+ * Sin rutas configuradas genera un par efímero (cambia en cada arranque). Con rutas configuradas
+ * carga las llaves de ahí, o las genera y guarda la primera vez.
  */
+@Slf4j
 @Component
 public class RsaKeyProvider {
 
@@ -51,7 +54,9 @@ public class RsaKeyProvider {
 
     @PostConstruct
     public void initialize() {
-        this.keyPair = loadConfiguredKeyPair().orElseGet(this::generateEphemeralKeyPair);
+        this.keyPair = loadConfiguredKeyPair()
+                .or(this::generateAndSaveKeyPair)
+                .orElseGet(this::generateEphemeralKeyPair);
     }
 
     public PrivateKey getPrivateKey() {
@@ -89,14 +94,68 @@ public class RsaKeyProvider {
         return java.util.Optional.empty();
     }
 
+    /**
+     * Con rutas configuradas pero sin archivos todavía, genera el par y lo guarda ahí para que
+     * los tokens emitidos sigan siendo válidos después de reiniciar. Nunca sobrescribe llaves existentes.
+     */
+    private java.util.Optional<KeyPair> generateAndSaveKeyPair() {
+        if (!hasText(privateKeyPath) || !hasText(publicKeyPath)) {
+            return java.util.Optional.empty();
+        }
+        Path privatePath = Path.of(privateKeyPath);
+        Path publicPath = Path.of(publicKeyPath);
+        if (Files.exists(privatePath) || Files.exists(publicPath)) {
+            log.warn("No se pudieron leer las llaves JWT de {} y {}; se usará un par efímero", privatePath, publicPath);
+            return java.util.Optional.empty();
+        }
+
+        KeyPair generated = newKeyPair();
+        try {
+            createParentDirectories(privatePath);
+            createParentDirectories(publicPath);
+            Files.writeString(privatePath, toPem(generated.getPrivate().getEncoded(), "PRIVATE KEY") + "\n", StandardCharsets.UTF_8);
+            try {
+                Files.setPosixFilePermissions(privatePath, PosixFilePermissions.fromString("rw-------"));
+            } catch (UnsupportedOperationException ignored) {
+                // Windows no maneja permisos POSIX
+            }
+            Files.writeString(publicPath, toPem(generated.getPublic().getEncoded(), "PUBLIC KEY") + "\n", StandardCharsets.UTF_8);
+            log.info("Llaves JWT generadas y guardadas en {} y {}", privatePath, publicPath);
+            return java.util.Optional.of(generated);
+        } catch (IOException ex) {
+            log.warn("No se pudieron guardar las llaves JWT; se usará un par efímero", ex);
+            deleteQuietly(privatePath);
+            deleteQuietly(publicPath);
+            return java.util.Optional.empty();
+        }
+    }
+
     private KeyPair generateEphemeralKeyPair() {
+        this.ephemeral = true;
+        return newKeyPair();
+    }
+
+    private KeyPair newKeyPair() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
-            this.ephemeral = true;
             return generator.generateKeyPair();
         } catch (Exception ex) {
             throw new IllegalStateException("No se pudo generar el par RSA del IdP", ex);
+        }
+    }
+
+    private void createParentDirectories(Path path) throws IOException {
+        if (path.toAbsolutePath().getParent() != null) {
+            Files.createDirectories(path.toAbsolutePath().getParent());
+        }
+    }
+
+    private void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // Si no se puede borrar, el siguiente arranque avisará que no puede leerla
         }
     }
 
